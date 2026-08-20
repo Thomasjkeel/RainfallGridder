@@ -7,6 +7,7 @@ Changelog
 Added
 ~~~~~
 * Add flush=True to print statements for batch computing
+* Expect zarr version 3.0.8 or later
 
 
 [0.1.3] - 2026-08-19
