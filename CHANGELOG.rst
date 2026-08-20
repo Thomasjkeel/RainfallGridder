@@ -1,6 +1,14 @@
 Changelog
 =========
 
+[0.1.4] - 2026-08-19
+--------------------
+
+Added
+~~~~~
+* Add flush=True to print statements for batch computing
+
+
 [0.1.3] - 2026-08-19
 --------------------
 
