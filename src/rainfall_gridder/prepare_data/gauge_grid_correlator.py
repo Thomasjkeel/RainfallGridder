@@ -196,7 +196,11 @@ class BatchGaugeVsGriddedCorrelator(GaugeVsGriddedCorrelator):
         output_dir:
             Output directory for data files
         verbose:
-            Whether to print progress as algorithm is run (default: False)
+            Whether to print progress as algorithm is run
+        correlation_threshold:
+            rain gauges lower than this will be flagged for removal
+        aggregate_gauge_to_daily:
+            Whether to aggregated rain gauge to daily time res (deafult: True)
         Returns
         -------
         """
