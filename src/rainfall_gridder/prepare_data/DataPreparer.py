@@ -140,16 +140,16 @@ class DataPreparer:
         """
         data_preparer = cls(**kwargs)
         if data_preparer.verbose:
-            print("Preparing data for gridder")
+            print("Preparing data for gridder", flush=True)
         data_preparer.prepare_data_and_metadata_for_gridding()
         if save_data:
             if data_preparer.verbose:
-                print(f"Saving data to {data_preparer.output_dir}")
+                print(f"Saving data to {data_preparer.output_dir}", flush=True)
             data_preparer.save_prepared_data(partition_by_columns)
             data_preparer.save_prepared_metadata()
         else:
             if data_preparer.verbose:
-                print("Data not saved")
+                print("Data not saved", flush=True)
         if return_data:
             return data_preparer.prepared_data, data_preparer.prepared_metadata
 
@@ -213,7 +213,7 @@ class DataPreparer:
             # Save data if at least N months worth of non-null record
             if len(data_one_group.drop_nulls()) >= self.min_n_timesteps:
                 if self.verbose:
-                    print(f"Adding group ID: {station_group_id}")
+                    print(f"Adding group ID: {station_group_id}", flush=True)
                 output_file_name = str(
                     data_combiner.build_output_path(
                         base_dir=self.output_dir / "data", id_col_name=self.station_id_col, station_id=station_name
@@ -226,10 +226,10 @@ class DataPreparer:
                 prepared_data_list.append(data_one_group)
             else:
                 if self.verbose:
-                    print(f"{station_name} being ignored as not more than {self.min_n_timesteps} time steps.")
+                    print(f"{station_name} being ignored as not more than {self.min_n_timesteps} time steps.", flush=True)
             if len(metadata_one_group) > 1:
                 if self.verbose:
-                    print(f"merging metadata of {station_name}")
+                    print(f"merging metadata of {station_name}", flush=True)
                 metadata_merger = metadata_preparer.MetadataMerger(
                     metadata=metadata_one_group,
                     cols_to_check_identical=[self.easting_col, self.northing_col, "station_group_id", "file_path"],
@@ -275,7 +275,7 @@ class DataPreparer:
             )
         )
         if self.verbose:
-            print(f"prepared gauge data available at: {self.output_dir / 'data/'}")
+            print(f"prepared gauge data available at: {self.output_dir / 'data/'}", flush=True)
 
     def save_prepared_metadata(self) -> None:
         if self.prepared_metadata is None:
@@ -285,4 +285,4 @@ class DataPreparer:
         )
         self.prepared_metadata.write_parquet(self.output_dir / "prepared_metadata.parquet")
         if self.verbose:
-            print(f"prepared gauge metadata available at: {self.output_dir / 'prepared_metadata.parquet'}")
+            print(f"prepared gauge metadata available at: {self.output_dir / 'prepared_metadata.parquet'}", flush=True)

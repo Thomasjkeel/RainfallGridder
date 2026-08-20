@@ -225,14 +225,14 @@ class BatchGaugeVsGriddedCorrelator(GaugeVsGriddedCorrelator):
             metadata_one_station = self.gauge_metadata.filter(pl.col(self.station_id_col) == station_id)
             if metadata_one_station.is_empty():
                 if self.verbose:
-                    print(f"Station ID: {station_id} is not included in the metadata")
+                    print(f"Station ID: {station_id} is not included in the metadata", flush=True)
                     continue
             data_one_station = self.gauge_data.filter(
                 pl.col(self.station_id_col).is_in(metadata_one_station[self.station_id_col].unique().to_list())
             )
             if data_one_station.is_empty():
                 if self.verbose:
-                    print(f"Station ID: {station_id} is not included in the data")
+                    print(f"Station ID: {station_id} is not included in the data", flush=True)
                     continue
 
             gauge_grid_correlator = GaugeVsGriddedCorrelator(
@@ -257,17 +257,17 @@ class BatchGaugeVsGriddedCorrelator(GaugeVsGriddedCorrelator):
             except ValueError as ve:
                 station_ids_to_remove.append(station_id)
                 if self.verbose:
-                    print(station_id, "failed, probably all NaN", ve)
-                    print(station_id, "flagged for removal")
+                    print(station_id, "failed, probably all NaN", ve, flush=True)
+                    print(station_id, "flagged for removal", flush=True)
                 continue
             if self.verbose:
-                print(station_id, r_result, rho_result)
+                print(station_id, r_result, rho_result, flush=True)
             if r_result > self.correlation_threshold or rho_result > self.correlation_threshold:
                 pass
             else:
                 station_ids_to_remove.append(station_id)
                 if self.verbose:
-                    print(station_id, "flagged for removal")
+                    print(station_id, "flagged for removal", flush=True)
 
         self.corrd_metadata = self.gauge_metadata.filter(~pl.col(self.station_id_col).is_in(station_ids_to_remove))
 
@@ -291,15 +291,15 @@ class BatchGaugeVsGriddedCorrelator(GaugeVsGriddedCorrelator):
         """
         batch_correlator = cls(**kwargs)
         if batch_correlator.verbose:
-            print("Starting Gauge vs Gridded Correlator")
+            print("Starting Gauge vs Gridded Correlator", flush=True)
         batch_correlator.run_correlator()
         if save_metadata:
             if batch_correlator.verbose:
-                print(f"Saving data to {batch_correlator.output_dir}")
+                print(f"Saving data to {batch_correlator.output_dir}", flush=True)
             batch_correlator.save_corrd_metadata()
         else:
             if batch_correlator.verbose:
-                print("Data not saved")
+                print("Data not saved", flush=True)
         if return_metadata:
             return batch_correlator.corrd_metadata
 
@@ -313,5 +313,5 @@ class BatchGaugeVsGriddedCorrelator(GaugeVsGriddedCorrelator):
         if self.verbose:
             print(
                 "Gauge metadata filtered by correlation to nearest grid cell available "
-                f"at: {self.output_dir / 'corrd_metadata.parquet'}"
+                f"at: {self.output_dir / 'corrd_metadata.parquet'}", flush=True
             )

@@ -244,7 +244,7 @@ class CEHGEARSubDailyProducer:
             else:
                 # There are no cells to stat disaggregate
                 if self.verbose:
-                    print("To remove: there are no cells to stat disagg")
+                    print("To remove: there are no cells to stat disagg", flush=True)
                 combined_factor_grid = factor_grid
 
             # set time
