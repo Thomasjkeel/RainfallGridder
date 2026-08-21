@@ -4,6 +4,7 @@ import scipy.stats
 import xarray as xr
 
 from rainfall_gridder.prepare_data.data_combiner import GaugeVsGriddedRainfallMatcher
+from rainfall_gridder.prepare_data import data_formatting
 from rainfall_gridder.utils import spatial_utils, xarray_utils
 
 
@@ -238,6 +239,15 @@ class BatchGaugeVsGriddedCorrelator(GaugeVsGriddedCorrelator):
                 if self.verbose:
                     print(f"Station ID: {station_id} is not included in the data", flush=True)
                     continue
+            
+            try:
+                data_formatting.check_time_overlap_between_gridded_and_gauges(data_one_station, self.date_time_col, self.gridded_rainfall_data, allow_imperfect_overlap=True)
+            except ValueError as ve:
+                station_ids_to_remove.append(station_id)
+                if self.verbose:
+                    print(station_id, ve, flush=True)
+                    print(station_id, "flagged for removal", flush=True)
+                continue
 
             gauge_grid_correlator = GaugeVsGriddedCorrelator(
                 gauge_data=data_one_station,

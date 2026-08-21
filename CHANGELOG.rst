@@ -7,6 +7,7 @@ Changelog
 Added
 ~~~~~
 * Add flush=True to print statements for batch computing
+* Check for time overlap for gauge grid correlator
 * Expect zarr version 3.0.8 or later
 
 
