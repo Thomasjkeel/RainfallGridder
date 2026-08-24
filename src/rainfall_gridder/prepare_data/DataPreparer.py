@@ -226,7 +226,9 @@ class DataPreparer:
                 prepared_data_list.append(data_one_group)
             else:
                 if self.verbose:
-                    print(f"{station_name} being ignored as not more than {self.min_n_timesteps} time steps.", flush=True)
+                    print(
+                        f"{station_name} being ignored as not more than {self.min_n_timesteps} time steps.", flush=True
+                    )
             if len(metadata_one_group) > 1:
                 if self.verbose:
                     print(f"merging metadata of {station_name}", flush=True)

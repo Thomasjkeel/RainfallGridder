@@ -112,8 +112,8 @@ def check_time_overlap_between_gridded_and_gauges(
                 f"gridded data: {gridded_rainfall_time_min} to {gridded_rainfall_time_max}."
             )
 
-        overlap_days = (overlap_end - overlap_start).days + 1 # plus 1d because inclusive
-        rainfall_total_days = (rainfall_data_time_max - rainfall_data_time_min).days + 1 # plus 1d because inclusive
+        overlap_days = (overlap_end - overlap_start).days + 1  # plus 1d because inclusive
+        rainfall_total_days = (rainfall_data_time_max - rainfall_data_time_min).days + 1  # plus 1d because inclusive
         if overlap_days != rainfall_total_days:
             # Check for at least 50% overlap in days
             if overlap_days <= (rainfall_total_days / 2):

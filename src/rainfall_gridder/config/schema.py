@@ -93,11 +93,12 @@ class WorkflowConfig(BaseModel):
     def load_gridded_rainfall(self) -> xr.Dataset:
         if self.gridded_rainfall_data.from_object_store:
             fdri_fs = fsspec.filesystem(
-                "s3", asynchronous=True, anon=True, endpoint_url=self.gridded_rainfall_data.object_store_config["endpoint_url"]
+                "s3",
+                asynchronous=True,
+                anon=True,
+                endpoint_url=self.gridded_rainfall_data.object_store_config["endpoint_url"],
             )
-            data_zstore = zarr.storage.FsspecStore(
-                fdri_fs, path=self.gridded_rainfall_data.object_store_config["path"]
-            )
+            data_zstore = zarr.storage.FsspecStore(fdri_fs, path=self.gridded_rainfall_data.object_store_config["path"])
             ds = xr.open_zarr(data_zstore, decode_times=True, decode_cf=True)
         else:
             if isinstance(self.gridded_rainfall_data.path, list):

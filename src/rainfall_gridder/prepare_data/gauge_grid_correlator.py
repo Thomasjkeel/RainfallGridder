@@ -89,7 +89,6 @@ class GaugeVsGriddedCorrelator:
         )
 
         return self._subset_gridded_data_to_start_and_end_of_gauge(nearest_gridded_daily)
-        
 
     def _join_gauge_to_grid(self):
         s_date = self.gauge_metadata[self.start_date_col][0]
@@ -239,9 +238,11 @@ class BatchGaugeVsGriddedCorrelator(GaugeVsGriddedCorrelator):
                 if self.verbose:
                     print(f"Station ID: {station_id} is not included in the data", flush=True)
                     continue
-            
+
             try:
-                data_formatting.check_time_overlap_between_gridded_and_gauges(data_one_station, self.date_time_col, self.gridded_rainfall_data, allow_imperfect_overlap=True)
+                data_formatting.check_time_overlap_between_gridded_and_gauges(
+                    data_one_station, self.date_time_col, self.gridded_rainfall_data, allow_imperfect_overlap=True
+                )
             except ValueError as ve:
                 station_ids_to_remove.append(station_id)
                 if self.verbose:
@@ -327,5 +328,6 @@ class BatchGaugeVsGriddedCorrelator(GaugeVsGriddedCorrelator):
         if self.verbose:
             print(
                 "Gauge metadata filtered by correlation to nearest grid cell available "
-                f"at: {self.output_dir / 'corrd_metadata.parquet'}", flush=True
+                f"at: {self.output_dir / 'corrd_metadata.parquet'}",
+                flush=True,
             )

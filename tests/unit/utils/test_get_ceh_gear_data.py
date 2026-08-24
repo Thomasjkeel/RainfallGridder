@@ -7,6 +7,3 @@ import polars as pl
 import pytest
 
 from rainfall_gridder.utils import get_ceh_gear_data
-
-
-

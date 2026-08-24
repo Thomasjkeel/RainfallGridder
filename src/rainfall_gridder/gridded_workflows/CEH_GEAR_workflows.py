@@ -25,6 +25,12 @@ def ceh_gear_subdaily_workflow(
     """
     Workflow for preparing, quality controlling and gridding rain gauge data onto CEH-GEAR subdaily product.
 
+    * Provides a 4-step procedure for:
+        1. Preparing your rain gauge data for gridding (combining duplicates by location)
+        2. Quality controlling rain gauge data with RainfallQC and the IntenseQC rulebase
+        3. Correlating values daily sums of rain gauges to nearest daily gridded rainfall
+        4. Generating grids using Nearest-neighbour interpolation
+
     Parameters
     ----------
     rainfall_data_path:
@@ -37,10 +43,10 @@ def ceh_gear_subdaily_workflow(
         Default arguments for CEH-GEAR workflow (see config/configs.py)
     gridded_rainfall_rename_dict:
         Columns to rename
-    from_object_store: 
+    from_object_store:
         Whether to get gridded data from object store or not (default False)
     object_store_config:
-        If from_object_store is True, then set "path" and "endpoint_url" in this dict 
+        If from_object_store is True, then set "path" and "endpoint_url" in this dict
     allow_imperfect_overlap:
         Whether to allow for an imperfect overlap between gridded and gauges (default False)
     data_columns:
@@ -136,6 +142,131 @@ def ceh_gear_subdaily_workflow(
         save_data=True,
         return_data=True,
     )
+    # 3. Correlate gauge and gridded data (agg. to daily)
+    print("3. Correlate gauge data to gridded data", flush=True)
+    station_ids_to_correlate = qcd_rainfall_metadata[config.data_columns.station_id_col].unique()
+    corrd_rainfall_metadata = BatchGaugeVsGriddedCorrelator.run(
+        gauge_data=qcd_rainfall_data,
+        gauge_metadata=qcd_rainfall_metadata,
+        gridded_rainfall_data=gridded_rainfall,
+        gridded_rainfall_col=config.gridded_rainfall_col,
+        station_ids_to_correlate=station_ids_to_correlate,
+        station_id_col=config.data_columns.station_id_col,
+        precipitation_col=config.data_columns.precipitation_col,
+        date_time_col=config.data_columns.date_time_col,
+        start_date_col=config.data_columns.start_date_col,
+        end_date_col=config.data_columns.end_date_col,
+        easting_col=config.data_columns.easting_col,
+        northing_col=config.data_columns.northing_col,
+        rainfall_offset_hours=config.rainfall_offset_hours,
+        verbose=config.verbose,
+        correlation_threshold=config.correlation_threshold,
+        output_dir=config.output_dir,
+        save_metadata=True,
+        return_metadata=True,
+    )
+
+    # 4. Generate grids
+    print("4. Generate grids and save to Zarr", flush=True)
+    # Get output grid dims (1 km by 1 km and same as HadUK-Grid)
+    output_grid = get_ceh_gear_data.get_uk_mask_haduk_coords()
+    # Subset/clip output grid and gridded daily to metadata bounds
+    gridded_rainfall, output_grid = clip_rainfall_grids_to_metadata_bounds(
+        gridded_rainfall=gridded_rainfall, output_grid=output_grid, config=config, metadata=corrd_rainfall_metadata
+    )
+
+    # TODO: move higher up as I think all parts will use this
+    gridded_rainfall = xarray_utils.replace_daily_time_step_hour_with_zero(gridded_rainfall, time_col="time")
+
+    produce_sub_daily_ceh_gear(config, gridded_rainfall, qcd_rainfall_data, corrd_rainfall_metadata, output_grid)
+
+    print(f"Done! Output saved to: {config.output_dir / config.output_zarr_name}", flush=True)
+
+
+def ceh_gear_subdaily_workflow_start_from_step_3_correlation(
+    rainfall_data_path: str | Path,
+    rainfall_metadata_path: str | Path,
+    gridded_rainfall_path: str | Path | xr.Dataset,
+    default_ceh_gear_kwargs: dict,
+    gridded_rainfall_rename_dict: dict | None = None,
+    from_object_store: bool = False,
+    object_store_config: dict | None = None,
+    allow_imperfect_overlap: bool = False,
+    data_columns: dict | ColumnConfig | None = None,
+    **overrides,
+) -> None:
+    """
+    Partial workflow for preparing, quality controlling and gridding rain gauge data onto CEH-GEAR subdaily product.
+
+    * Begins at stage 3 of below procedure:
+        ~1. Preparing your rain gauge data for gridding (combining duplicates by location)~
+        ~2. Quality controlling rain gauge data with RainfallQC and the IntenseQC rulebase~
+        3. Correlating values daily sums of rain gauges to nearest daily gridded rainfall
+        4. Generating grids using Nearest-neighbour interpolation
+
+    Parameters
+    ----------
+    rainfall_data_path:
+       Path to rain gauge data
+    rainfall_metadata_path:
+        Path to metadata for the rain gauge data
+    gridded_rainfall_path:
+        Path to gridded rainfall data (e.g. HadUK-Grid)
+    default_ceh_gear_kwargs:
+        Default arguments for CEH-GEAR workflow (see config/configs.py)
+    gridded_rainfall_rename_dict:
+        Columns to rename
+    from_object_store:
+        Whether to get gridded data from object store or not (default False)
+    object_store_config:
+        If from_object_store is True, then set "path" and "endpoint_url" in this dict
+    allow_imperfect_overlap:
+        Whether to allow for an imperfect overlap between gridded and gauges (default False)
+    data_columns:
+        Names of the columns in rainfall data and metadata (will default to standard names, see config/schema.py)
+    overrides:
+        Any arguments to override in the defaults of CEH-GEAR workflow or Workflowconfig
+
+    """
+    # 1. Build column config (allow overrides)
+    if data_columns is None:
+        data_columns = ColumnConfig()
+    elif isinstance(data_columns, dict):
+        data_columns = ColumnConfig(**data_columns)
+
+    # 2. Build workflow config (NOTE: match schema structure)
+    config = WorkflowConfig(
+        **default_ceh_gear_kwargs,
+        **overrides,  # will silent win against default ceh_gear_kwargs
+        rainfall_data={
+            "path": rainfall_data_path,
+        },
+        rainfall_metadata={
+            "path": rainfall_metadata_path,
+        },
+        gridded_rainfall_data={
+            "path": gridded_rainfall_path,
+            "rename": gridded_rainfall_rename_dict or {},
+            "from_object_store": from_object_store,
+            "object_store_config": object_store_config or {},
+        },
+        data_columns=data_columns,
+    )
+    # 0. Load in data
+    print("0. Load in data", flush=True)
+    rainfall_data = config.load_rainfall_data()
+    rainfall_metadata = config.load_rainfall_metadata()
+    gridded_rainfall = config.load_gridded_rainfall()
+
+    # Check overlap between rain gauge data and gridded rainfall data
+    data_formatting.check_time_overlap_between_gridded_and_gauges(
+        rainfall_data=rainfall_data,
+        rainfall_date_time_col=config.data_columns.date_time_col,
+        gridded_rainfall=gridded_rainfall,
+        allow_imperfect_overlap=allow_imperfect_overlap,
+    )
+
+    # Start workflow (start form correlate grids)
     # 3. Correlate gauge and gridded data (agg. to daily)
     print("3. Correlate gauge data to gridded data", flush=True)
     station_ids_to_correlate = qcd_rainfall_metadata[config.data_columns.station_id_col].unique()

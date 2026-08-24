@@ -260,7 +260,8 @@ class QualityController:
             )
             if self.verbose:
                 print(
-                    f"Station ID: {station_id}\tA total of {qc_summariser.all_flags['all_flags_by_row'][station_id].count() - rule_removed_rows[station_id].count()} rows were removed", flush=True
+                    f"Station ID: {station_id}\tA total of {qc_summariser.all_flags['all_flags_by_row'][station_id].count() - rule_removed_rows[station_id].count()} rows were removed",
+                    flush=True,
                 )  # some rows may have stayed null
             ## get back into parquet format that fits with Oracle
             rule_removed_rows = rule_removed_rows.select(["time", station_id])  # saves memory
