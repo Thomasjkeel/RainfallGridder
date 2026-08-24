@@ -269,10 +269,10 @@ def ceh_gear_subdaily_workflow_start_from_step_3_correlation(
     # Start workflow (start form correlate grids)
     # 3. Correlate gauge and gridded data (agg. to daily)
     print("3. Correlate gauge data to gridded data", flush=True)
-    station_ids_to_correlate = qcd_rainfall_metadata[config.data_columns.station_id_col].unique()
+    station_ids_to_correlate = rainfall_metadata[config.data_columns.station_id_col].unique()
     corrd_rainfall_metadata = BatchGaugeVsGriddedCorrelator.run(
-        gauge_data=qcd_rainfall_data,
-        gauge_metadata=qcd_rainfall_metadata,
+        gauge_data=rainfall_data,
+        gauge_metadata=rainfall_metadata,
         gridded_rainfall_data=gridded_rainfall,
         gridded_rainfall_col=config.gridded_rainfall_col,
         station_ids_to_correlate=station_ids_to_correlate,
@@ -303,7 +303,7 @@ def ceh_gear_subdaily_workflow_start_from_step_3_correlation(
     # TODO: move higher up as I think all parts will use this
     gridded_rainfall = xarray_utils.replace_daily_time_step_hour_with_zero(gridded_rainfall, time_col="time")
 
-    produce_sub_daily_ceh_gear(config, gridded_rainfall, qcd_rainfall_data, corrd_rainfall_metadata, output_grid)
+    produce_sub_daily_ceh_gear(config, gridded_rainfall, rainfall_data, corrd_rainfall_metadata, output_grid)
 
     print(f"Done! Output saved to: {config.output_dir / config.output_zarr_name}", flush=True)
 
