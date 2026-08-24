@@ -1,6 +1,14 @@
 Changelog
 =========
 
+[0.1.5] - 2026-08-XX
+--------------------
+
+Added
+~~~~~
+* Add verbose argument to check_time_overlap_between_gridded_and_gauges
+
+
 [0.1.4] - 2026-08-19
 --------------------
 

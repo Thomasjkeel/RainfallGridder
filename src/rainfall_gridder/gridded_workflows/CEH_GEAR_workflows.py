@@ -91,6 +91,7 @@ def ceh_gear_subdaily_workflow(
         rainfall_date_time_col=config.data_columns.date_time_col,
         gridded_rainfall=gridded_rainfall,
         allow_imperfect_overlap=allow_imperfect_overlap,
+        verbose=config.verbose,
     )
 
     # Start workflow
@@ -264,6 +265,7 @@ def ceh_gear_subdaily_workflow_start_from_step_3_correlation(
         rainfall_date_time_col=config.data_columns.date_time_col,
         gridded_rainfall=gridded_rainfall,
         allow_imperfect_overlap=allow_imperfect_overlap,
+        verbose=config.verbose,
     )
 
     # Start workflow (start form correlate grids)

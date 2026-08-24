@@ -241,7 +241,7 @@ class BatchGaugeVsGriddedCorrelator(GaugeVsGriddedCorrelator):
 
             try:
                 data_formatting.check_time_overlap_between_gridded_and_gauges(
-                    data_one_station, self.date_time_col, self.gridded_rainfall_data, allow_imperfect_overlap=True
+                    data_one_station, self.date_time_col, self.gridded_rainfall_data, allow_imperfect_overlap=True, verbose=False
                 )
             except ValueError as ve:
                 station_ids_to_remove.append(station_id)

@@ -67,6 +67,7 @@ def check_time_overlap_between_gridded_and_gauges(
     rainfall_date_time_col: str,
     gridded_rainfall: xr.Dataset,
     allow_imperfect_overlap: bool,
+    verbose: bool = False,
 ):
     """
     Check there is an overlap between the gridded and gauge data.
@@ -80,7 +81,9 @@ def check_time_overlap_between_gridded_and_gauges(
     gridded_rainfall:
         Gridded rainfall data
     allow_imperfect_overlap:
-        Whether to allow for an imperfect overlap between gridded and gauges (default False)
+        Whether to allow for an imperfect overlap between gridded and gauges
+    verbose:
+        Whether to print warning about imperfect overlap (default False)
 
     Raises
     ------
@@ -123,11 +126,12 @@ def check_time_overlap_between_gridded_and_gauges(
                     f"gridded data: {gridded_rainfall_time_min} to {gridded_rainfall_time_max}."
                 )
             else:
-                print(
-                    f"Warning: imperfect overlap (overlap {overlap_days}/{rainfall_total_days} days) between gridded rainfall data and rain gauge data. "
-                    f"Rainfall data: {rainfall_data_time_min} to {rainfall_data_time_max}; "
-                    f"gridded data: {gridded_rainfall_time_min} to {gridded_rainfall_time_max}."
-                )
+                if verbose:
+                    print(
+                        f"Warning: imperfect overlap (overlap {overlap_days}/{rainfall_total_days} days) between gridded rainfall data and rain gauge data. "
+                        f"Rainfall data: {rainfall_data_time_min} to {rainfall_data_time_max}; "
+                        f"gridded data: {gridded_rainfall_time_min} to {gridded_rainfall_time_max}."
+                    )
 
     else:
         if gridded_rainfall_time_min > rainfall_data_time_min or gridded_rainfall_time_max < rainfall_data_time_max:
