@@ -184,7 +184,7 @@ def ceh_gear_subdaily_workflow(
     print(f"Done! Output saved to: {config.output_dir / config.output_zarr_name}", flush=True)
 
 
-def ceh_gear_subdaily_workflow_start_from_step_3_correlation(
+def ceh_gear_subdaily_workflow_just_gridding(
     rainfall_data_path: str | Path,
     rainfall_metadata_path: str | Path,
     gridded_rainfall_path: str | Path | xr.Dataset,
@@ -268,44 +268,18 @@ def ceh_gear_subdaily_workflow_start_from_step_3_correlation(
         verbose=config.verbose,
     )
 
-    # Start workflow (start form correlate grids)
-    # 3. Correlate gauge and gridded data (agg. to daily)
-    print("3. Correlate gauge data to gridded data", flush=True)
-    station_ids_to_correlate = rainfall_metadata[config.data_columns.station_id_col].unique()
-    corrd_rainfall_metadata = BatchGaugeVsGriddedCorrelator.run(
-        gauge_data=rainfall_data,
-        gauge_metadata=rainfall_metadata,
-        gridded_rainfall_data=gridded_rainfall,
-        gridded_rainfall_col=config.gridded_rainfall_col,
-        station_ids_to_correlate=station_ids_to_correlate,
-        station_id_col=config.data_columns.station_id_col,
-        precipitation_col=config.data_columns.precipitation_col,
-        date_time_col=config.data_columns.date_time_col,
-        start_date_col=config.data_columns.start_date_col,
-        end_date_col=config.data_columns.end_date_col,
-        easting_col=config.data_columns.easting_col,
-        northing_col=config.data_columns.northing_col,
-        rainfall_offset_hours=config.rainfall_offset_hours,
-        verbose=config.verbose,
-        correlation_threshold=config.correlation_threshold,
-        output_dir=config.output_dir,
-        save_metadata=True,
-        return_metadata=True,
-    )
-
-    # 4. Generate grids
     print("4. Generate grids and save to Zarr", flush=True)
     # Get output grid dims (1 km by 1 km and same as HadUK-Grid)
     output_grid = get_ceh_gear_data.get_uk_mask_haduk_coords()
     # Subset/clip output grid and gridded daily to metadata bounds
     gridded_rainfall, output_grid = clip_rainfall_grids_to_metadata_bounds(
-        gridded_rainfall=gridded_rainfall, output_grid=output_grid, config=config, metadata=corrd_rainfall_metadata
+        gridded_rainfall=gridded_rainfall, output_grid=output_grid, config=config, metadata=rainfall_metadata
     )
 
     # TODO: move higher up as I think all parts will use this
     gridded_rainfall = xarray_utils.replace_daily_time_step_hour_with_zero(gridded_rainfall, time_col="time")
 
-    produce_sub_daily_ceh_gear(config, gridded_rainfall, rainfall_data, corrd_rainfall_metadata, output_grid)
+    produce_sub_daily_ceh_gear(config, gridded_rainfall, rainfall_data, rainfall_metadata, output_grid)
 
     print(f"Done! Output saved to: {config.output_dir / config.output_zarr_name}", flush=True)
 
