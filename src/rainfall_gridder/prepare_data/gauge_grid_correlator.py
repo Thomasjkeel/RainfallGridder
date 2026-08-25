@@ -240,8 +240,21 @@ class BatchGaugeVsGriddedCorrelator(GaugeVsGriddedCorrelator):
                     continue
 
             try:
-                data_formatting.check_time_overlap_between_gridded_and_gauges(
-                    data_one_station, self.date_time_col, self.gridded_rainfall_data, allow_imperfect_overlap=True, verbose=False
+                gauge_grid_correlator = GaugeVsGriddedCorrelator(
+                    gauge_data=data_one_station,
+                    gauge_metadata=metadata_one_station,
+                    nearest_gridded_daily=self.gridded_rainfall_data,
+                    station_id=station_id,
+                    precipitation_col=self.precipitation_col,
+                    gridded_rainfall_col=self.gridded_rainfall_col,
+                    date_time_col=self.date_time_col,
+                    start_date_col=self.start_date_col,
+                    end_date_col=self.end_date_col,
+                    station_id_col=self.station_id_col,
+                    easting_col=self.easting_col,
+                    northing_col=self.northing_col,
+                    rainfall_offset_hours=self.rainfall_offset_hours,
+                    aggregate_gauge_to_daily=self.aggregate_gauge_to_daily,
                 )
             except ValueError as ve:
                 station_ids_to_remove.append(station_id)
@@ -249,23 +262,6 @@ class BatchGaugeVsGriddedCorrelator(GaugeVsGriddedCorrelator):
                     print(station_id, ve, flush=True)
                     print(station_id, "flagged for removal", flush=True)
                 continue
-
-            gauge_grid_correlator = GaugeVsGriddedCorrelator(
-                gauge_data=data_one_station,
-                gauge_metadata=metadata_one_station,
-                nearest_gridded_daily=self.gridded_rainfall_data,
-                station_id=station_id,
-                precipitation_col=self.precipitation_col,
-                gridded_rainfall_col=self.gridded_rainfall_col,
-                date_time_col=self.date_time_col,
-                start_date_col=self.start_date_col,
-                end_date_col=self.end_date_col,
-                station_id_col=self.station_id_col,
-                easting_col=self.easting_col,
-                northing_col=self.northing_col,
-                rainfall_offset_hours=self.rainfall_offset_hours,
-                aggregate_gauge_to_daily=self.aggregate_gauge_to_daily,
-            )
 
             try:
                 r_result, rho_result = gauge_grid_correlator.get_corr()
