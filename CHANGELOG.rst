@@ -9,6 +9,7 @@ Added
 * Redo logic for saving to zarr to allow for overwriting and check if zarr_output_file_exists
 * Speed up gridding by loading into memory
 * Add verbose argument to check_time_overlap_between_gridded_and_gauges
+* Express min dist as km instead (to save a lot of memory)
 
 
 [0.1.4] - 2026-08-19

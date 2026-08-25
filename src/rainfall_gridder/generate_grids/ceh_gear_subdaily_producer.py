@@ -146,6 +146,7 @@ class CEHGEARSubDailyProducer:
         if not isinstance(gauge_x_grid, xr.DataArray) or not isinstance(gauge_y_grid, xr.DataArray):
             gauge_x_grid, gauge_y_grid, _ = self.run_interpolation(x_coords, y_coords, x_grid, y_grid)
         distance_grid = calculate_gauge_to_grid_centre_distance(x_grid, y_grid, gauge_x_grid, gauge_y_grid)
+        distance_grid = distance_grid / 1000  # convert from metres to kilometres
         # mask out oceans
         distance_grid = distance_grid.where(land_mask)
         distance_grid["time"] = self.time_step
@@ -318,7 +319,7 @@ class CEHGEARSubDailyProducer:
 
         # 6. Convert to dataset
         ceh_gear_one_day = ceh_gear_one_day.to_dataset(name=output_rainfall_name)
-        ceh_gear_one_day["min_dist"] = distance_grid
+        ceh_gear_one_day["min_dist_km"] = distance_grid
         ceh_gear_one_day["stat_disag"] = cells_to_stat_disag
         return ceh_gear_one_day
 
