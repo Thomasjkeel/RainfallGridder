@@ -293,6 +293,11 @@ def produce_sub_daily_ceh_gear(config, gridded_rainfall, qcd_rainfall_data, corr
         qcd_rainfall_data,
         date_col=config.data_columns.date_time_col,
     )
+
+    available_time_steps = set(
+        qcd_rainfall_data[config.data_columns.date_time_col].to_list()
+    )
+
     any_batches_processed = False
     for batch_days in batch_saving_utils.batch_days(all_days, config.batch_size):
         sub_daily_ceh_gear_batch = []
@@ -303,28 +308,24 @@ def produce_sub_daily_ceh_gear(config, gridded_rainfall, qcd_rainfall_data, corr
                                                                  max(batch_days).replace(minute=0, second=0, microsecond=0)))
         batch_gridded_rainfall.load()
         for time_step in batch_days:
-            if config.verbose:
-                if time_step not in qcd_rainfall_data[config.data_columns.date_time_col]:
+            if time_step not in available_time_steps:
+                if config.verbose:
                     print(f"{time_step} not in rainfall data so being skipped.", flush=True)
-                    continue
-                else:
-                    time_step_exists = False
-                    try:
-                        # Try to use the datetime colum to select a single time step value
-                        batch_gridded_rainfall.sel(time=time_step)
-                        time_step_exists = True
-                    except KeyError:
-                        time_step_exists = False
-                    if time_step_exists:
-                        print(f"starting {time_step}", flush=True)
-                        valid_time_steps_processed += 1
-                    else:
-                        print(f"{time_step} not in gridded rainfall so being skipped.", flush=True)
-                        continue
+                continue
+            try: 
+                one_day_gridded_daily = batch_gridded_rainfall.sel(
+                    time=time_step.replace(minute=0, second=0, microsecond=0)
+                ).where(output_grid)  # subset_to_uk_mask to work with map multiplication
+                if config.verbose:
+                    print(f"starting {time_step}", flush=True)
 
-            one_day_gridded_daily = batch_gridded_rainfall.sel(
-                time=time_step.replace(minute=0, second=0, microsecond=0)
-            ).where(output_grid)  # subset_to_uk_mask to work with map multiplication
+            except KeyError:
+                if config.verbose:
+                    print(
+                        f"{time_step} not in gridded rainfall so being skipped.",
+                        flush=True,
+                    )
+                continue
 
             ceh_gear_sub_daily_producer = CEHGEARSubDailyProducer(
                 rainfall_data=qcd_rainfall_data,
