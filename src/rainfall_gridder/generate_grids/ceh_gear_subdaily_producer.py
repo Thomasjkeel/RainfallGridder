@@ -4,6 +4,7 @@ import numpy as np
 import polars as pl
 import scipy.interpolate
 import xarray as xr
+from scipy.spatial import cKDTree
 
 from rainfall_gridder.generate_grids.alt_stat_diag_frac import (
     get_stat_disag_fraction_1h_grid,
@@ -185,8 +186,27 @@ class CEHGEARSubDailyProducer:
         # 1. Get individual gauge coords for the day
         gauge_points = self.gauge_daily_info["points"].to_numpy()
         x_coords, y_coords, x_grid, y_grid = get_xy_coordinate_grids(land_mask, return_coords=True)
+        
+        grid_disag_func = (
+            get_stat_disag_fraction_15min_grid if self.time_res == "15m" else get_stat_disag_fraction_1h_grid
+        )
+
+        # Precompute nearest gauge for every grid cell
+        grid_points = np.column_stack(
+            (x_grid.to_numpy().ravel(), y_grid.to_numpy().ravel())
+        )
+
+        tree = scipy.spatial.cKDTree(gauge_points)
+        _, nearest_gauge_idx = tree.query(grid_points)
+        nearest_gauge_idx = nearest_gauge_idx.reshape(x_grid.shape)
+
+        # Look for any cells to stat disag
+        masked_one_day_gridded_daily = one_day_gridded_daily[gridded_rainfall_col].where(cells_to_stat_disag)
+        no_cells_to_disagg = bool(masked_one_day_gridded_daily.isnull().all())
+
+
+
         # 2. Calculate subdaily factor grid
-        all_subdaily_factor_grid = []
 
         # 2.1 Format data before partioning and looping through
         # 2.1.1 prefilter out gauge stations not in the day
@@ -196,21 +216,35 @@ class CEHGEARSubDailyProducer:
         # 2.1.2 Partition pl.Dataframe into individual time steps
         all_time_steps_gauge_data_groups = one_day_rainfall_data.partition_by(self.date_time_col, as_dict=True)
 
+        all_subdaily_factor_grid = []
+
         for time_step, gauge_one_timestep in all_time_steps_gauge_data_groups.items():
             time_step = time_step[0]  # returned as a tuple, so need to get first item
             assert len(gauge_one_timestep) == gauge_points.shape[0], (
                 "The number of gauges with data need to be the same as number of gauges"
             )
+            
             gauge_one_timestep_rainfall = gauge_one_timestep[self.precipitation_col].to_numpy()
 
-            gauge_timestep_interpolator = scipy.interpolate.NearestNDInterpolator(
-                gauge_points, gauge_one_timestep_rainfall
+            # Fast nearest-neighbour interpolation using precomputed
+            # nearest-gauge indices.
+            timestep_grid = gauge_one_timestep_rainfall[nearest_gauge_idx]
+
+            timestep_grid = xr.DataArray(
+                timestep_grid,
+                coords=land_mask.coords,
+                dims=land_mask.dims,
             )
 
-            # Interpolate onto the grid
-            timestep_grid = interpolate_values_onto_coordinate_grid(
-                gauge_timestep_interpolator, x_grid, y_grid, x_coords, y_coords
-            )
+
+            # gauge_timestep_interpolator = scipy.interpolate.NearestNDInterpolator(
+            #     gauge_points, gauge_one_timestep_rainfall
+            # )
+
+            # # Interpolate onto the grid
+            # timestep_grid = interpolate_values_onto_coordinate_grid(
+            #     gauge_timestep_interpolator, x_grid, y_grid, x_coords, y_coords
+            # )
 
             factor_grid = (timestep_grid / daily_totals_grid).where(land_mask)
             # Important to do before stat disagg
@@ -222,11 +256,8 @@ class CEHGEARSubDailyProducer:
             #     if self.time_res == "1h"
             #     else get_stat_disag_fraction_15min
             # )
-            grid_disag_func = (
-                get_stat_disag_fraction_15min_grid if self.time_res == "15m" else get_stat_disag_fraction_1h_grid
-            )
-            masked_one_day_gridded_daily = one_day_gridded_daily[gridded_rainfall_col].where(cells_to_stat_disag)
-            if not masked_one_day_gridded_daily.isnull().all():
+
+            if not no_cells_to_disagg:
                 time_step_w_offset = time_step - datetime.timedelta(hours=self.hour_at_start_of_day)
                 # cells_to_stat_disag_frac = xr.apply_ufunc(
                 #     stat_disag_func,
@@ -248,7 +279,9 @@ class CEHGEARSubDailyProducer:
                 combined_factor_grid = factor_grid
 
             # set time
-            combined_factor_grid["time"] = time_step
+            combined_factor_grid = combined_factor_grid.expand_dims(
+                time=[time_step]
+            )
             all_subdaily_factor_grid.append(combined_factor_grid)
         all_subdaily_factor_grid_ds = xr.concat(all_subdaily_factor_grid, dim="time")
         return all_subdaily_factor_grid_ds

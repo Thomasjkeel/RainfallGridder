@@ -274,6 +274,7 @@ def ceh_gear_subdaily_workflow_just_gridding(
     print("4. Generate grids and save to Zarr", flush=True)
     # Get output grid dims (1 km by 1 km and same as HadUK-Grid)
     output_grid = get_ceh_gear_data.get_uk_mask_haduk_coords()
+    output_grid.load()
     # Subset/clip output grid and gridded daily to metadata bounds
     gridded_rainfall, output_grid = clip_rainfall_grids_to_metadata_bounds(
         gridded_rainfall=gridded_rainfall, output_grid=output_grid, config=config, metadata=rainfall_metadata
@@ -296,6 +297,11 @@ def produce_sub_daily_ceh_gear(config, gridded_rainfall, qcd_rainfall_data, corr
     for batch_days in batch_saving_utils.batch_days(all_days, config.batch_size):
         sub_daily_ceh_gear_batch = []
         valid_time_steps_processed = 0
+        
+        # Preload gridded rainfall
+        batch_gridded_rainfall = gridded_rainfall.sel(time=slice(min(batch_days).replace(minute=0, second=0, microsecond=0),
+                                                                 max(batch_days).replace(minute=0, second=0, microsecond=0)))
+        batch_gridded_rainfall.load()
         for time_step in batch_days:
             if config.verbose:
                 if time_step not in qcd_rainfall_data[config.data_columns.date_time_col]:
@@ -305,7 +311,7 @@ def produce_sub_daily_ceh_gear(config, gridded_rainfall, qcd_rainfall_data, corr
                     time_step_exists = False
                     try:
                         # Try to use the datetime colum to select a single time step value
-                        gridded_rainfall.sel(time=time_step)
+                        batch_gridded_rainfall.sel(time=time_step)
                         time_step_exists = True
                     except KeyError:
                         time_step_exists = False
@@ -316,7 +322,7 @@ def produce_sub_daily_ceh_gear(config, gridded_rainfall, qcd_rainfall_data, corr
                         print(f"{time_step} not in gridded rainfall so being skipped.", flush=True)
                         continue
 
-            one_day_gridded_daily = gridded_rainfall.sel(
+            one_day_gridded_daily = batch_gridded_rainfall.sel(
                 time=time_step.replace(minute=0, second=0, microsecond=0)
             ).where(output_grid)  # subset_to_uk_mask to work with map multiplication
 
@@ -333,6 +339,11 @@ def produce_sub_daily_ceh_gear(config, gridded_rainfall, qcd_rainfall_data, corr
                 hour_at_start_of_day=config.rainfall_offset_hours,
                 verbose=config.verbose,
             )
+            if ceh_gear_sub_daily_producer.gauge_daily_info.is_empty():
+                if config.verbose:
+                    print(f"No gauge data on {time_step}, skipping...")
+                continue
+
             ceh_gear_sub_daily_one_day = ceh_gear_sub_daily_producer.produce_ceh_gear(
                 land_mask=output_grid,
                 one_day_gridded_daily=one_day_gridded_daily,
@@ -345,6 +356,7 @@ def produce_sub_daily_ceh_gear(config, gridded_rainfall, qcd_rainfall_data, corr
             print(allow_overwrite, any_batches_processed, valid_time_steps_processed)
             write_to_zarr(config, allow_overwrite, sub_daily_ceh_gear_batch, any_batches_processed)
             any_batches_processed = True
+        del batch_gridded_rainfall
 
 
 def write_to_zarr(config, allow_overwrite, sub_daily_ceh_gear_batch, any_batches_processed):
