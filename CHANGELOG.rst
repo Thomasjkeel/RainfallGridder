@@ -6,6 +6,7 @@ Changelog
 
 Added
 ~~~~~
+* Redo logic for saving to zarr to allow for overwriting and check if zarr_output_file_exists
 * Add verbose argument to check_time_overlap_between_gridded_and_gauges
 
 

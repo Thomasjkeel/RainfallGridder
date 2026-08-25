@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 import polars as pl
 import xarray as xr
@@ -15,6 +16,7 @@ def ceh_gear_subdaily_workflow(
     rainfall_metadata_path: str | Path,
     gridded_rainfall_path: str | Path | xr.Dataset,
     default_ceh_gear_kwargs: dict,
+    allow_zarr_overwrite: bool,
     gridded_rainfall_rename_dict: dict | None = None,
     from_object_store: bool = False,
     object_store_config: dict | None = None,
@@ -179,7 +181,7 @@ def ceh_gear_subdaily_workflow(
     # TODO: move higher up as I think all parts will use this
     gridded_rainfall = xarray_utils.replace_daily_time_step_hour_with_zero(gridded_rainfall, time_col="time")
 
-    produce_sub_daily_ceh_gear(config, gridded_rainfall, qcd_rainfall_data, corrd_rainfall_metadata, output_grid)
+    produce_sub_daily_ceh_gear(config, gridded_rainfall, qcd_rainfall_data, corrd_rainfall_metadata, output_grid, allow_overwrite=allow_zarr_overwrite)
 
     print(f"Done! Output saved to: {config.output_dir / config.output_zarr_name}", flush=True)
 
@@ -189,6 +191,7 @@ def ceh_gear_subdaily_workflow_just_gridding(
     rainfall_metadata_path: str | Path,
     gridded_rainfall_path: str | Path | xr.Dataset,
     default_ceh_gear_kwargs: dict,
+    allow_zarr_overwrite: bool,
     gridded_rainfall_rename_dict: dict | None = None,
     from_object_store: bool = False,
     object_store_config: dict | None = None,
@@ -279,17 +282,17 @@ def ceh_gear_subdaily_workflow_just_gridding(
     # TODO: move higher up as I think all parts will use this
     gridded_rainfall = xarray_utils.replace_daily_time_step_hour_with_zero(gridded_rainfall, time_col="time")
 
-    produce_sub_daily_ceh_gear(config, gridded_rainfall, rainfall_data, rainfall_metadata, output_grid)
+    produce_sub_daily_ceh_gear(config, gridded_rainfall, rainfall_data, rainfall_metadata, output_grid, allow_overwrite=allow_zarr_overwrite)
 
     print(f"Done! Output saved to: {config.output_dir / config.output_zarr_name}", flush=True)
 
 
-def produce_sub_daily_ceh_gear(config, gridded_rainfall, qcd_rainfall_data, corrd_rainfall_metadata, output_grid):
+def produce_sub_daily_ceh_gear(config, gridded_rainfall, qcd_rainfall_data, corrd_rainfall_metadata, output_grid, allow_overwrite):
     all_days = batch_saving_utils.get_all_days_in_input(
         qcd_rainfall_data,
         date_col=config.data_columns.date_time_col,
     )
-    any_time_steps_processed = False
+    any_batches_processed = False
     for batch_days in batch_saving_utils.batch_days(all_days, config.batch_size):
         sub_daily_ceh_gear_batch = []
         valid_time_steps_processed = 0
@@ -308,11 +311,6 @@ def produce_sub_daily_ceh_gear(config, gridded_rainfall, qcd_rainfall_data, corr
                         time_step_exists = False
                     if time_step_exists:
                         print(f"starting {time_step}", flush=True)
-                        if valid_time_steps_processed == 0 and not any_time_steps_processed:
-                            first_write = True
-                            any_time_steps_processed = True
-                        else:
-                            first_write = False
                         valid_time_steps_processed += 1
                     else:
                         print(f"{time_step} not in gridded rainfall so being skipped.", flush=True)
@@ -344,29 +342,36 @@ def produce_sub_daily_ceh_gear(config, gridded_rainfall, qcd_rainfall_data, corr
             sub_daily_ceh_gear_batch.append(ceh_gear_sub_daily_one_day)
 
         if valid_time_steps_processed > 0:
-            print(first_write, valid_time_steps_processed)
-            write_to_zarr(config, first_write, sub_daily_ceh_gear_batch)
+            if any_batches_processed:
+                allow_overwrite = False
+            print(allow_overwrite, valid_time_steps_processed)
+            write_to_zarr(config, allow_overwrite, sub_daily_ceh_gear_batch)
+            any_batches_processed = True
 
 
-def write_to_zarr(config, first_write, sub_daily_ceh_gear_batch):
+def write_to_zarr(config, allow_overwrite, sub_daily_ceh_gear_batch):
     if not sub_daily_ceh_gear_batch:
         return
+    zarr_output_file_exists = os.path.exists(config.output_dir / config.output_zarr_name)
+    if zarr_output_file_exists and not allow_overwrite:
+        raise ValueError(f"Zarr output file already exists: {config.output_dir / config.output_zarr_name}. If you'd like to overwrite, set allow_zarr_overwrite=True")
+
     combined_batch_ds = xr.concat(sub_daily_ceh_gear_batch, dim="time", join="outer")
     combined_batch_ds = combined_batch_ds.chunk("auto")
     del sub_daily_ceh_gear_batch
 
-    if first_write:
-        combined_batch_ds.to_zarr(
-            config.output_dir / config.output_zarr_name, align_chunks=True, mode="w", zarr_format=2
-        )
-        if config.verbose:
-            print("First batch written.", flush=True)
-    else:
+    if zarr_output_file_exists and not allow_overwrite:
         combined_batch_ds.to_zarr(
             config.output_dir / config.output_zarr_name, align_chunks=True, append_dim="time", zarr_format=2
         )
         if config.verbose:
             print("Next batch written.", flush=True)
+    else:
+        combined_batch_ds.to_zarr(
+            config.output_dir / config.output_zarr_name, align_chunks=True, mode="w", zarr_format=2
+        )
+        if config.verbose:
+            print("First batch written.", flush=True)
 
     del combined_batch_ds
 
