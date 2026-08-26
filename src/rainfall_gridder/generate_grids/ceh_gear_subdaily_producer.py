@@ -184,7 +184,7 @@ class CEHGEARSubDailyProducer:
     ) -> xr.Dataset:
         # Have some assert to check there are not too many time steps
         # TODO: check that this will always be the same order
-        # 1. Get individual gauge coords for the day
+        # 0. Get individual gauge coords for the day
         gauge_points = self.gauge_daily_info["points"].to_numpy()
         x_coords, y_coords, x_grid, y_grid = get_xy_coordinate_grids(land_mask, return_coords=True)
 
@@ -192,7 +192,7 @@ class CEHGEARSubDailyProducer:
             get_stat_disag_fraction_15min_grid if self.time_res == "15m" else get_stat_disag_fraction_1h_grid
         )
 
-        # Precompute nearest gauge for every grid cell
+        # 1. Precompute nearest gauge for every grid cell
         grid_points = np.column_stack((x_grid.to_numpy().ravel(), y_grid.to_numpy().ravel()))
 
         tree = scipy.spatial.cKDTree(gauge_points)
@@ -204,7 +204,6 @@ class CEHGEARSubDailyProducer:
         no_cells_to_disagg = bool(masked_one_day_gridded_daily.isnull().all())
 
         # 2. Calculate subdaily factor grid
-
         # 2.1 Format data before partioning and looping through
         # 2.1.1 prefilter out gauge stations not in the day
         station_ids_in_day = self.gauge_daily_info[self.station_id_col].to_list()
@@ -233,36 +232,12 @@ class CEHGEARSubDailyProducer:
                 dims=land_mask.dims,
             )
 
-            # gauge_timestep_interpolator = scipy.interpolate.NearestNDInterpolator(
-            #     gauge_points, gauge_one_timestep_rainfall
-            # )
-
-            # # Interpolate onto the grid
-            # timestep_grid = interpolate_values_onto_coordinate_grid(
-            #     gauge_timestep_interpolator, x_grid, y_grid, x_coords, y_coords
-            # )
-
             factor_grid = (timestep_grid / daily_totals_grid).where(land_mask)
             # Important to do before stat disagg
             factor_grid = factor_grid.fillna(0.0)
 
-            # Statistical disaggregation
-            # stat_disag_func = (
-            #     get_stat_disag_fraction_hourly
-            #     if self.time_res == "1h"
-            #     else get_stat_disag_fraction_15min
-            # )
-
             if not no_cells_to_disagg:
                 time_step_w_offset = time_step - datetime.timedelta(hours=self.hour_at_start_of_day)
-                # cells_to_stat_disag_frac = xr.apply_ufunc(
-                #     stat_disag_func,
-                #     masked_one_day_gridded_daily,
-                #     time_step_w_offset,
-                #     vectorize=True,
-                #     dask="parallelized",
-                #     output_dtypes=[float],
-                # )
                 cells_to_stat_disag_frac = grid_disag_func(
                     masked_one_day_gridded_daily,
                     time_step_w_offset,
