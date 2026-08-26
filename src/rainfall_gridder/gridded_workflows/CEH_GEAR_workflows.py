@@ -10,6 +10,7 @@ from rainfall_gridder.prepare_data.gauge_grid_correlator import BatchGaugeVsGrid
 from rainfall_gridder.generate_grids.ceh_gear_subdaily_producer import CEHGEARSubDailyProducer
 from rainfall_gridder.utils import batch_saving_utils, get_ceh_gear_data, spatial_utils, xarray_utils
 
+from zarr.codecs import BloscCodec
 
 def ceh_gear_subdaily_workflow(
     rainfall_data_path: str | Path,
@@ -367,45 +368,79 @@ def produce_sub_daily_ceh_gear(
             sub_daily_ceh_gear_batch.append(ceh_gear_sub_daily_one_day)
             valid_time_steps_processed += 1
         if valid_time_steps_processed > 0:
-            print(allow_overwrite, any_batches_processed, valid_time_steps_processed)
+            print("Write/append to zarr output", flush=True)
+            print(f"Allow overwrite: {allow_overwrite}. Any batches processed: {ny_batches_processed}. Number of valid days: {valid_time_steps_processed}.", flush=True)
             write_to_zarr(config, allow_overwrite, sub_daily_ceh_gear_batch, any_batches_processed)
             any_batches_processed = True
         del batch_gridded_rainfall
 
 
-def write_to_zarr(config, allow_overwrite, sub_daily_ceh_gear_batch, any_batches_processed):
+def write_to_zarr(
+    config,
+    allow_overwrite,
+    sub_daily_ceh_gear_batch,
+    any_batches_processed,
+):
     if not sub_daily_ceh_gear_batch:
         return
-    zarr_output_file_exists = os.path.exists(config.output_dir / config.output_zarr_name)
+
+    output_path = config.output_dir / config.output_zarr_name
+    zarr_output_file_exists = output_path.exists()
+
     if zarr_output_file_exists and not any_batches_processed:
         if not allow_overwrite:
             raise ValueError(
-                f"Zarr output file already exists: {config.output_dir / config.output_zarr_name}. If you'd like to overwrite, set allow_zarr_overwrite=True"
+                f"Zarr output file already exists: {output_path}. "
+                "If you'd like to overwrite, set allow_zarr_overwrite=True"
             )
         mode = "w"
     elif zarr_output_file_exists:
         mode = "a"
     else:
         mode = "w"
-    sub_daily_ceh_gear_batch = [ds.chunk({"y": 255, "x": 255}) for ds in sub_daily_ceh_gear_batch]
+
+    sub_daily_ceh_gear_batch = [
+        ds.chunk({"y": 300, "x": 300})
+        for ds in sub_daily_ceh_gear_batch
+    ]
+
     combined_batch_ds = xr.concat(
         sub_daily_ceh_gear_batch,
         dim="time",
         join="exact",
         coords="minimal",
     )
+
+    for variable in combined_batch_ds.variables.values():
+        variable.encoding.pop("compressor", None)
+        variable.encoding.pop("compressors", None)
+        variable.encoding.pop("chunks", None)
+        variable.encoding.pop("filters", None)
+        variable.encoding["compressors"] = BloscCodec(cname="zstd", clevel=5, shuffle="shuffle")
+
     del sub_daily_ceh_gear_batch
 
     if mode == "a":
         combined_batch_ds.to_zarr(
-            config.output_dir / config.output_zarr_name, align_chunks=True, append_dim="time", zarr_format=2
+            output_path,
+            align_chunks=True,
+            append_dim="time",
+            zarr_format=3,
+            consolidated=False,
         )
+
         if config.verbose:
             print("Next batch written.", flush=True)
+
     else:
         combined_batch_ds.to_zarr(
-            config.output_dir / config.output_zarr_name, align_chunks=True, mode="w", zarr_format=2
+            output_path,
+            align_chunks=True,
+            mode="w",
+            zarr_format=3,
+            consolidated=False,
         )
+
         if config.verbose:
             print("First batch written.", flush=True)
 
