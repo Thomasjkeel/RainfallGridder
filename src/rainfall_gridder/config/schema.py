@@ -67,7 +67,9 @@ class WorkflowConfig(BaseModel):
         3. a directory containing parquet or csv files
         """
         rainfall_data_path = Path(self.rainfall_data.path)
-        time_subset = (pl.col(self.data_columns.date_time_col) >= self.workflow_start_date) & (pl.col(self.data_columns.date_time_col) <= self.workflow_end_date)
+        time_subset = (pl.col(self.data_columns.date_time_col) >= self.workflow_start_date) & (
+            pl.col(self.data_columns.date_time_col) <= self.workflow_end_date
+        )
         if rainfall_data_path.suffix == ".parquet":
             return pl.read_parquet(rainfall_data_path, try_parse_hive_dates=True).filter(time_subset)
 

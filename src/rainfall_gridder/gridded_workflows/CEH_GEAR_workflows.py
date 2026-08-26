@@ -181,7 +181,14 @@ def ceh_gear_subdaily_workflow(
     # TODO: move higher up as I think all parts will use this
     gridded_rainfall = xarray_utils.replace_daily_time_step_hour_with_zero(gridded_rainfall, time_col="time")
 
-    produce_sub_daily_ceh_gear(config, gridded_rainfall, qcd_rainfall_data, corrd_rainfall_metadata, output_grid, allow_overwrite=allow_zarr_overwrite)
+    produce_sub_daily_ceh_gear(
+        config,
+        gridded_rainfall,
+        qcd_rainfall_data,
+        corrd_rainfall_metadata,
+        output_grid,
+        allow_overwrite=allow_zarr_overwrite,
+    )
 
     print(f"Done! Output saved to: {config.output_dir / config.output_zarr_name}", flush=True)
 
@@ -283,36 +290,42 @@ def ceh_gear_subdaily_workflow_just_gridding(
     # TODO: move higher up as I think all parts will use this
     gridded_rainfall = xarray_utils.replace_daily_time_step_hour_with_zero(gridded_rainfall, time_col="time")
 
-    produce_sub_daily_ceh_gear(config, gridded_rainfall, rainfall_data, rainfall_metadata, output_grid, allow_overwrite=allow_zarr_overwrite)
+    produce_sub_daily_ceh_gear(
+        config, gridded_rainfall, rainfall_data, rainfall_metadata, output_grid, allow_overwrite=allow_zarr_overwrite
+    )
 
     print(f"Done! Output saved to: {config.output_dir / config.output_zarr_name}", flush=True)
 
 
-def produce_sub_daily_ceh_gear(config, gridded_rainfall, qcd_rainfall_data, corrd_rainfall_metadata, output_grid, allow_overwrite):
+def produce_sub_daily_ceh_gear(
+    config, gridded_rainfall, qcd_rainfall_data, corrd_rainfall_metadata, output_grid, allow_overwrite
+):
     all_days = batch_saving_utils.get_all_days_in_input(
         qcd_rainfall_data,
         date_col=config.data_columns.date_time_col,
     )
 
-    available_time_steps = set(
-        qcd_rainfall_data[config.data_columns.date_time_col].to_list()
-    )
+    available_time_steps = set(qcd_rainfall_data[config.data_columns.date_time_col].to_list())
 
     any_batches_processed = False
     for batch_days in batch_saving_utils.batch_days(all_days, config.batch_size):
         sub_daily_ceh_gear_batch = []
         valid_time_steps_processed = 0
-        
+
         # Preload gridded rainfall
-        batch_gridded_rainfall = gridded_rainfall.sel(time=slice(min(batch_days).replace(minute=0, second=0, microsecond=0),
-                                                                 max(batch_days).replace(minute=0, second=0, microsecond=0)))
+        batch_gridded_rainfall = gridded_rainfall.sel(
+            time=slice(
+                min(batch_days).replace(minute=0, second=0, microsecond=0),
+                max(batch_days).replace(minute=0, second=0, microsecond=0),
+            )
+        )
         batch_gridded_rainfall.load()
         for time_step in batch_days:
             if time_step not in available_time_steps:
                 if config.verbose:
                     print(f"{time_step} not in rainfall data so being skipped.", flush=True)
                 continue
-            try: 
+            try:
                 one_day_gridded_daily = batch_gridded_rainfall.sel(
                     time=time_step.replace(minute=0, second=0, microsecond=0)
                 ).where(output_grid)  # subset_to_uk_mask to work with map multiplication
@@ -366,16 +379,15 @@ def write_to_zarr(config, allow_overwrite, sub_daily_ceh_gear_batch, any_batches
     zarr_output_file_exists = os.path.exists(config.output_dir / config.output_zarr_name)
     if zarr_output_file_exists and not any_batches_processed:
         if not allow_overwrite:
-            raise ValueError(f"Zarr output file already exists: {config.output_dir / config.output_zarr_name}. If you'd like to overwrite, set allow_zarr_overwrite=True")
+            raise ValueError(
+                f"Zarr output file already exists: {config.output_dir / config.output_zarr_name}. If you'd like to overwrite, set allow_zarr_overwrite=True"
+            )
         mode = "w"
     elif zarr_output_file_exists:
         mode = "a"
     else:
         mode = "w"
-    sub_daily_ceh_gear_batch = [
-        ds.chunk({"y": 255, "x": 255})
-        for ds in sub_daily_ceh_gear_batch
-    ]
+    sub_daily_ceh_gear_batch = [ds.chunk({"y": 255, "x": 255}) for ds in sub_daily_ceh_gear_batch]
     combined_batch_ds = xr.concat(
         sub_daily_ceh_gear_batch,
         dim="time",

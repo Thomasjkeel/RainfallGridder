@@ -187,15 +187,13 @@ class CEHGEARSubDailyProducer:
         # 1. Get individual gauge coords for the day
         gauge_points = self.gauge_daily_info["points"].to_numpy()
         x_coords, y_coords, x_grid, y_grid = get_xy_coordinate_grids(land_mask, return_coords=True)
-        
+
         grid_disag_func = (
             get_stat_disag_fraction_15min_grid if self.time_res == "15m" else get_stat_disag_fraction_1h_grid
         )
 
         # Precompute nearest gauge for every grid cell
-        grid_points = np.column_stack(
-            (x_grid.to_numpy().ravel(), y_grid.to_numpy().ravel())
-        )
+        grid_points = np.column_stack((x_grid.to_numpy().ravel(), y_grid.to_numpy().ravel()))
 
         tree = scipy.spatial.cKDTree(gauge_points)
         _, nearest_gauge_idx = tree.query(grid_points)
@@ -204,8 +202,6 @@ class CEHGEARSubDailyProducer:
         # Look for any cells to stat disag
         masked_one_day_gridded_daily = one_day_gridded_daily[gridded_rainfall_col].where(cells_to_stat_disag)
         no_cells_to_disagg = bool(masked_one_day_gridded_daily.isnull().all())
-
-
 
         # 2. Calculate subdaily factor grid
 
@@ -224,7 +220,7 @@ class CEHGEARSubDailyProducer:
             assert len(gauge_one_timestep) == gauge_points.shape[0], (
                 f"The number of gauges with data ({len(gauge_one_timestep)}) need to be the same as number of gauges ({gauge_points.shape[0]})"
             )
-            
+
             gauge_one_timestep_rainfall = gauge_one_timestep[self.precipitation_col].to_numpy()
 
             # Fast nearest-neighbour interpolation using precomputed
@@ -236,7 +232,6 @@ class CEHGEARSubDailyProducer:
                 coords=land_mask.coords,
                 dims=land_mask.dims,
             )
-
 
             # gauge_timestep_interpolator = scipy.interpolate.NearestNDInterpolator(
             #     gauge_points, gauge_one_timestep_rainfall
@@ -280,9 +275,7 @@ class CEHGEARSubDailyProducer:
                 combined_factor_grid = factor_grid
 
             # set time
-            combined_factor_grid = combined_factor_grid.expand_dims(
-                time=[time_step]
-            )
+            combined_factor_grid = combined_factor_grid.expand_dims(time=[time_step])
             all_subdaily_factor_grid.append(combined_factor_grid)
         all_subdaily_factor_grid_ds = xr.concat(all_subdaily_factor_grid, dim="time")
         return all_subdaily_factor_grid_ds
