@@ -10,6 +10,7 @@ Added
 * Speed up gridding by loading into memory
 * Add verbose argument to check_time_overlap_between_gridded_and_gauges
 * Add workflow_start and end_dates argument
+* Add step to regularise the data if there are time steps missing
 * Express min dist as km instead (to save a lot of memory)
 
 

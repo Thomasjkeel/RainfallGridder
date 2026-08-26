@@ -62,14 +62,10 @@ class WorkflowConfig(BaseModel):
     @model_validator(mode="after")
     def preformat_workflow_datetimes(self):
         if type(self.workflow_start_date) is datetime.date:
-            self.workflow_start_date = datetime.datetime.combine(
-                self.workflow_start_date, datetime.time.min
-            )
+            self.workflow_start_date = datetime.datetime.combine(self.workflow_start_date, datetime.time.min)
 
         if type(self.workflow_end_date) is datetime.date:
-            self.workflow_end_date = datetime.datetime.combine(
-                self.workflow_end_date, datetime.time(23, 59, 59)
-            )
+            self.workflow_end_date = datetime.datetime.combine(self.workflow_end_date, datetime.time(23, 59, 59))
 
         return self
 

@@ -209,17 +209,11 @@ class CEHGEARSubDailyProducer:
         one_day_rainfall_data = self.one_day_rainfall_data.filter(pl.col(self.station_id_col).is_in(station_ids_in_day))
         one_day_rainfall_data.sort((self.station_id_col, self.date_time_col))
 
-        # 3. regularilirse the data so no time steps missing in 
+        # 3. regularilirse the data so no time steps missing in
         all_time_steps_gauge_data = (
-            one_day_rainfall_data
-            .select(self.date_time_col)
+            one_day_rainfall_data.select(self.date_time_col)
             .unique()
-            .join(
-                self.gauge_daily_info
-                    .select("station_id")
-                    .unique(maintain_order=True)
-                , how="cross"
-            )
+            .join(self.gauge_daily_info.select("station_id").unique(maintain_order=True), how="cross")
             .join(
                 one_day_rainfall_data,
                 on=[self.date_time_col, "station_id"],
@@ -229,7 +223,10 @@ class CEHGEARSubDailyProducer:
         )
 
         if len(all_time_steps_gauge_data) != len(one_day_rainfall_data):
-            print(f"Data regularised so all time steps in day for all station ids. Before {len(all_time_steps_gauge_data)}, after: {len(one_day_rainfall_data)}") 
+            print(
+                f"Warning: Data has been regularised so all time steps in day for all station ids. "
+                f"Number of data points in day: before: {len(all_time_steps_gauge_data)}, after: {len(one_day_rainfall_data)}"
+            )
         # 3.1 Partition pl.Dataframe into individual time steps
         all_time_steps_gauge_data_groups = all_time_steps_gauge_data.partition_by(self.date_time_col, as_dict=True)
 
