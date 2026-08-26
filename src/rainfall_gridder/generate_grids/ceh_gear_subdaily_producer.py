@@ -204,14 +204,36 @@ class CEHGEARSubDailyProducer:
         no_cells_to_disagg = bool(masked_one_day_gridded_daily.isnull().all())
 
         # 2. Calculate subdaily factor grid
-        # 2.1 Format data before partioning and looping through
-        # 2.1.1 prefilter out gauge stations not in the day
+        # 2.1 Format data before partioning and looping through. prefilter out gauge stations not in the day
         station_ids_in_day = self.gauge_daily_info[self.station_id_col].to_list()
         one_day_rainfall_data = self.one_day_rainfall_data.filter(pl.col(self.station_id_col).is_in(station_ids_in_day))
         one_day_rainfall_data.sort((self.station_id_col, self.date_time_col))
-        # 2.1.2 Partition pl.Dataframe into individual time steps
-        all_time_steps_gauge_data_groups = one_day_rainfall_data.partition_by(self.date_time_col, as_dict=True)
 
+        # 3. regularilirse the data so no time steps missing in 
+        all_time_steps_gauge_data = (
+            one_day_rainfall_data
+            .select(self.date_time_col)
+            .unique()
+            .join(
+                self.gauge_daily_info
+                    .select("station_id")
+                    .unique(maintain_order=True)
+                , how="cross"
+            )
+            .join(
+                one_day_rainfall_data,
+                on=[self.date_time_col, "station_id"],
+                how="left",
+            )
+            .sort([self.date_time_col, "station_id"])
+        )
+
+        if len(all_time_steps_gauge_data) != len(one_day_rainfall_data):
+            print(f"Data regularised so all time steps in day for all station ids. Before {len(all_time_steps_gauge_data)}, after: {len(one_day_rainfall_data)}") 
+        # 3.1 Partition pl.Dataframe into individual time steps
+        all_time_steps_gauge_data_groups = all_time_steps_gauge_data.partition_by(self.date_time_col, as_dict=True)
+
+        # 4. Loop through all time steps in day and compute factor grids
         all_subdaily_factor_grid = []
 
         for time_step, gauge_one_timestep in all_time_steps_gauge_data_groups.items():

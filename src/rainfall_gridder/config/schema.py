@@ -5,7 +5,7 @@ import fsspec
 import polars as pl
 import xarray as xr
 import zarr
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 from polars.exceptions import ComputeError, InvalidOperationError
 
 
@@ -58,6 +58,20 @@ class WorkflowConfig(BaseModel):
     min_n_timesteps: int = 100
     batch_size: int = 5
     output_zarr_name: str = "final_gridded_data"
+
+    @model_validator(mode="after")
+    def preformat_workflow_datetimes(self):
+        if type(self.workflow_start_date) is datetime.date:
+            self.workflow_start_date = datetime.datetime.combine(
+                self.workflow_start_date, datetime.time.min
+            )
+
+        if type(self.workflow_end_date) is datetime.date:
+            self.workflow_end_date = datetime.datetime.combine(
+                self.workflow_end_date, datetime.time(23, 59, 59)
+            )
+
+        return self
 
     def load_rainfall_data(self) -> pl.DataFrame:
         """
