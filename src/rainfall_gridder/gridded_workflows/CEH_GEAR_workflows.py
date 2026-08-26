@@ -352,7 +352,7 @@ def produce_sub_daily_ceh_gear(config, gridded_rainfall, qcd_rainfall_data, corr
                 output_rainfall_name="rainfall",
             )
             sub_daily_ceh_gear_batch.append(ceh_gear_sub_daily_one_day)
-
+            valid_time_steps_processed += 1
         if valid_time_steps_processed > 0:
             print(allow_overwrite, any_batches_processed, valid_time_steps_processed)
             write_to_zarr(config, allow_overwrite, sub_daily_ceh_gear_batch, any_batches_processed)
@@ -372,8 +372,16 @@ def write_to_zarr(config, allow_overwrite, sub_daily_ceh_gear_batch, any_batches
         mode = "a"
     else:
         mode = "w"
-    combined_batch_ds = xr.concat(sub_daily_ceh_gear_batch, dim="time", join="exact")
-    combined_batch_ds = combined_batch_ds.chunk("auto")
+    sub_daily_ceh_gear_batch = [
+        ds.chunk({"y": 255, "x": 255})
+        for ds in sub_daily_ceh_gear_batch
+    ]
+    combined_batch_ds = xr.concat(
+        sub_daily_ceh_gear_batch,
+        dim="time",
+        join="exact",
+        coords="minimal",
+    )
     del sub_daily_ceh_gear_batch
 
     if mode == "a":

@@ -146,7 +146,7 @@ class CEHGEARSubDailyProducer:
         if not isinstance(gauge_x_grid, xr.DataArray) or not isinstance(gauge_y_grid, xr.DataArray):
             gauge_x_grid, gauge_y_grid, _ = self.run_interpolation(x_coords, y_coords, x_grid, y_grid)
         distance_grid = calculate_gauge_to_grid_centre_distance(x_grid, y_grid, gauge_x_grid, gauge_y_grid)
-        distance_grid = distance_grid / 1000  # convert from metres to kilometres
+        distance_grid = np.round(distance_grid / 1000, 2)  # convert from metres to kilometres
         # mask out oceans
         distance_grid = distance_grid.where(land_mask)
         distance_grid["time"] = self.time_step
@@ -222,7 +222,7 @@ class CEHGEARSubDailyProducer:
         for time_step, gauge_one_timestep in all_time_steps_gauge_data_groups.items():
             time_step = time_step[0]  # returned as a tuple, so need to get first item
             assert len(gauge_one_timestep) == gauge_points.shape[0], (
-                "The number of gauges with data need to be the same as number of gauges"
+                f"The number of gauges with data ({len(gauge_one_timestep)}) need to be the same as number of gauges ({gauge_points.shape[0]})"
             )
             
             gauge_one_timestep_rainfall = gauge_one_timestep[self.precipitation_col].to_numpy()

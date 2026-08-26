@@ -1,3 +1,4 @@
+import datetime
 from pathlib import Path
 
 import fsspec
@@ -40,6 +41,8 @@ class WorkflowConfig(BaseModel):
     data_columns: ColumnConfig
     gridded_rainfall_data: GriddedRainfallConfig
     gridded_rainfall_col: str
+    workflow_start_date: datetime.datetime | datetime.date
+    workflow_end_date: datetime.datetime | datetime.date
     output_dir: Path
     rainfall_offset_hours: int
     n_hours: int
@@ -64,18 +67,18 @@ class WorkflowConfig(BaseModel):
         3. a directory containing parquet or csv files
         """
         rainfall_data_path = Path(self.rainfall_data.path)
-
+        time_subset = (pl.col(self.data_columns.date_time_col) >= self.workflow_start_date) & (pl.col(self.data_columns.date_time_col) <= self.workflow_end_date)
         if rainfall_data_path.suffix == ".parquet":
-            return pl.read_parquet(rainfall_data_path, try_parse_hive_dates=True)
+            return pl.read_parquet(rainfall_data_path, try_parse_hive_dates=True).filter(time_subset)
 
         if rainfall_data_path.suffix == ".csv":
-            return pl.read_csv(rainfall_data_path, try_parse_dates=True)
+            return pl.read_csv(rainfall_data_path, try_parse_dates=True).filter(time_subset)
 
         try:
-            return pl.scan_parquet(rainfall_data_path, try_parse_hive_dates=True).collect()
+            return pl.scan_parquet(rainfall_data_path, try_parse_hive_dates=True).filter(time_subset).collect()
         except (ComputeError, InvalidOperationError):
             try:
-                return pl.scan_csv(rainfall_data_path, try_parse_dates=True).collect()
+                return pl.scan_csv(rainfall_data_path, try_parse_dates=True).filter(time_subset).collect()
             except (ComputeError, InvalidOperationError) as err:
                 raise ValueError(f"Problem with files in rainfall data input path: {path}") from err
 
@@ -108,4 +111,4 @@ class WorkflowConfig(BaseModel):
         if self.gridded_rainfall_data.rename:
             ds = ds.rename(self.gridded_rainfall_data.rename)
         assert self.gridded_rainfall_col in ds.data_vars, f"{self.gridded_rainfall_col} not in gridded_rainfall_data"
-        return ds
+        return ds.sel(time=slice(self.workflow_start_date, self.workflow_end_date))
