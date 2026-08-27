@@ -12,12 +12,14 @@ from rainfall_gridder.utils import batch_saving_utils, get_ceh_gear_data, spatia
 
 from zarr.codecs import BloscCodec
 
+
 def ceh_gear_subdaily_workflow(
     rainfall_data_path: str | Path,
     rainfall_metadata_path: str | Path,
     gridded_rainfall_path: str | Path | xr.Dataset,
     default_ceh_gear_kwargs: dict,
     allow_zarr_overwrite: bool,
+    compress_min_dist: bool = True,
     gridded_rainfall_rename_dict: dict | None = None,
     from_object_store: bool = False,
     object_store_config: dict | None = None,
@@ -44,6 +46,10 @@ def ceh_gear_subdaily_workflow(
         Path to gridded rainfall data (e.g. HadUK-Grid)
     default_ceh_gear_kwargs:
         Default arguments for CEH-GEAR workflow (see config/configs.py)
+    allow_zarr_overwrite:
+        Overwrite existing zarr file
+    compress_min_dist:
+        Compress min dist into daily instead of per time step
     gridded_rainfall_rename_dict:
         Columns to rename
     from_object_store:
@@ -189,6 +195,7 @@ def ceh_gear_subdaily_workflow(
         corrd_rainfall_metadata,
         output_grid,
         allow_overwrite=allow_zarr_overwrite,
+        compress_min_dist=compress_min_dist,
     )
 
     print(f"Done! Output saved to: {config.output_dir / config.output_zarr_name}", flush=True)
@@ -200,6 +207,7 @@ def ceh_gear_subdaily_workflow_just_gridding(
     gridded_rainfall_path: str | Path | xr.Dataset,
     default_ceh_gear_kwargs: dict,
     allow_zarr_overwrite: bool,
+    compress_min_dist: bool = True,
     gridded_rainfall_rename_dict: dict | None = None,
     from_object_store: bool = False,
     object_store_config: dict | None = None,
@@ -226,6 +234,10 @@ def ceh_gear_subdaily_workflow_just_gridding(
         Path to gridded rainfall data (e.g. HadUK-Grid)
     default_ceh_gear_kwargs:
         Default arguments for CEH-GEAR workflow (see config/configs.py)
+    allow_zarr_overwrite:
+        Overwrite existing zarr file
+    compress_min_dist:
+        Compress min dist into daily instead of per time step
     gridded_rainfall_rename_dict:
         Columns to rename
     from_object_store:
@@ -292,14 +304,26 @@ def ceh_gear_subdaily_workflow_just_gridding(
     gridded_rainfall = xarray_utils.replace_daily_time_step_hour_with_zero(gridded_rainfall, time_col="time")
 
     produce_sub_daily_ceh_gear(
-        config, gridded_rainfall, rainfall_data, rainfall_metadata, output_grid, allow_overwrite=allow_zarr_overwrite
+        config,
+        gridded_rainfall,
+        rainfall_data,
+        rainfall_metadata,
+        output_grid,
+        allow_overwrite=allow_zarr_overwrite,
+        compress_min_dist=compress_min_dist,
     )
 
     print(f"Done! Output saved to: {config.output_dir / config.output_zarr_name}", flush=True)
 
 
 def produce_sub_daily_ceh_gear(
-    config, gridded_rainfall, qcd_rainfall_data, corrd_rainfall_metadata, output_grid, allow_overwrite
+    config,
+    gridded_rainfall,
+    qcd_rainfall_data,
+    corrd_rainfall_metadata,
+    output_grid,
+    allow_overwrite,
+    compress_min_dist,
 ):
     all_days = batch_saving_utils.get_all_days_in_input(
         qcd_rainfall_data,
@@ -311,6 +335,7 @@ def produce_sub_daily_ceh_gear(
     any_batches_processed = False
     for batch_days in batch_saving_utils.batch_days(all_days, config.batch_size):
         sub_daily_ceh_gear_batch = []
+        min_dist_batch = []
         valid_time_steps_processed = 0
 
         # Preload gridded rainfall
@@ -347,6 +372,7 @@ def produce_sub_daily_ceh_gear(
                 station_id_col=config.data_columns.station_id_col,
                 time_step=time_step,
                 time_res=config.time_res,
+                land_mask=output_grid,
                 precipitation_col=config.data_columns.precipitation_col,
                 easting_col=config.data_columns.easting_col,
                 northing_col=config.data_columns.northing_col,
@@ -359,18 +385,30 @@ def produce_sub_daily_ceh_gear(
                     print(f"No gauge data on {time_step}, skipping...")
                 continue
 
+            # Calculate min_dist_km
+            min_dist_one_day = ceh_gear_sub_daily_producer.make_min_dist_var(
+                compress_min_dist=compress_min_dist,
+            )
+
             ceh_gear_sub_daily_one_day = ceh_gear_sub_daily_producer.produce_ceh_gear(
-                land_mask=output_grid,
                 one_day_gridded_daily=one_day_gridded_daily,
                 gridded_rainfall_col=config.gridded_rainfall_col,
                 output_rainfall_name="rainfall",
             )
+            min_dist_batch.append(min_dist_one_day)
             sub_daily_ceh_gear_batch.append(ceh_gear_sub_daily_one_day)
+
             valid_time_steps_processed += 1
+        # Concat variables together
+        # ceh_gear_one_day["min_dist_km"] = distance_grid
+
         if valid_time_steps_processed > 0:
             print("Write/append to zarr output", flush=True)
-            print(f"Allow overwrite: {allow_overwrite}. Any batches processed: {ny_batches_processed}. Number of valid days: {valid_time_steps_processed}.", flush=True)
-            write_to_zarr(config, allow_overwrite, sub_daily_ceh_gear_batch, any_batches_processed)
+            print(
+                f"Allow overwrite: {allow_overwrite}. Any batches processed: {any_batches_processed}. Number of valid days: {valid_time_steps_processed}.",
+                flush=True,
+            )
+            write_to_zarr(config, allow_overwrite, sub_daily_ceh_gear_batch, min_dist_batch, any_batches_processed)
             any_batches_processed = True
         del batch_gridded_rainfall
 
@@ -379,6 +417,7 @@ def write_to_zarr(
     config,
     allow_overwrite,
     sub_daily_ceh_gear_batch,
+    min_dist_batch,
     any_batches_processed,
 ):
     if not sub_daily_ceh_gear_batch:
@@ -399,10 +438,10 @@ def write_to_zarr(
     else:
         mode = "w"
 
-    sub_daily_ceh_gear_batch = [
-        ds.chunk({"y": 300, "x": 300})
-        for ds in sub_daily_ceh_gear_batch
-    ]
+    sub_daily_ceh_gear_batch = [ds.chunk({"y": 300, "x": 300}) for ds in sub_daily_ceh_gear_batch]
+    min_dist_batch = [ds.chunk({"y": 300, "x": 300}) for ds in min_dist_batch]
+
+    combined_min_dist = xr.concat(min_dist_batch, dim="day", join="exact", coords="minimal")
 
     combined_batch_ds = xr.concat(
         sub_daily_ceh_gear_batch,
@@ -410,6 +449,7 @@ def write_to_zarr(
         join="exact",
         coords="minimal",
     )
+    combined_batch_ds["min_dist_km"] = combined_min_dist["min_dist_km"] 
 
     for variable in combined_batch_ds.variables.values():
         variable.encoding.pop("compressor", None)

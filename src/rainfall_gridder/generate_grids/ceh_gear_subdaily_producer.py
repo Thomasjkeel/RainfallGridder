@@ -23,6 +23,7 @@ class CEHGEARSubDailyProducer:
         station_id_col: str,
         time_step: datetime.datetime,
         time_res: str,
+        land_mask: xr.DataArray,
         precipitation_col: str,
         easting_col: str,
         northing_col: str,
@@ -35,12 +36,15 @@ class CEHGEARSubDailyProducer:
 
         Parameters
         ----------
+        land_mask:
+            Mask of land if ocean in xarray
 
         """
         assert time_res in ["1h", "15m"], f"Data resolution needs to be either '15m' or '1h', currently: {time_res}."
         self.rainfall_metadata = rainfall_metadata
         self.time_step = time_step
         self.time_res = time_res
+        self.land_mask = land_mask
         self.precipitation_col = precipitation_col
         self.easting_col = easting_col
         self.northing_col = northing_col
@@ -52,6 +56,12 @@ class CEHGEARSubDailyProducer:
         self.one_day_daily_totals = self._get_daily_gauge_totals()
         self.gauge_daily_info = self._get_daily_info()
         self.gauge_daily_totals = self.gauge_daily_info[self.precipitation_col].to_numpy()
+
+        # Build and run interpolators
+        x_coords, y_coords, x_grid, y_grid = get_xy_coordinate_grids(self.land_mask, return_coords=True)
+        self.gauge_x_grid, self.gauge_y_grid, self.daily_totals_grid = self._run_interpolation(
+            x_coords=x_coords, y_coords=y_coords, x_grid=x_grid, y_grid=y_grid
+        )
 
     def _get_one_day_rainfall_data(
         self,
@@ -120,7 +130,7 @@ class CEHGEARSubDailyProducer:
         daily_totals_interpolator = scipy.interpolate.NearestNDInterpolator(gauge_points, self.gauge_daily_totals)
         return gauge_x_interpolator, gauge_y_interpolator, daily_totals_interpolator
 
-    def run_interpolation(
+    def _run_interpolation(
         self,
         x_coords: xr.DataArray,
         y_coords: xr.DataArray,
@@ -137,47 +147,37 @@ class CEHGEARSubDailyProducer:
 
     def calculate_distance_grid(
         self,
-        land_mask: xr.DataArray,
-        gauge_x_grid: xr.DataArray = None,
-        gauge_y_grid: xr.DataArray = None,
     ) -> xr.DataArray:
         # TODO: put in another class
-        x_coords, y_coords, x_grid, y_grid = get_xy_coordinate_grids(land_mask, return_coords=True)
-        if not isinstance(gauge_x_grid, xr.DataArray) or not isinstance(gauge_y_grid, xr.DataArray):
-            gauge_x_grid, gauge_y_grid, _ = self.run_interpolation(x_coords, y_coords, x_grid, y_grid)
-        distance_grid = calculate_gauge_to_grid_centre_distance(x_grid, y_grid, gauge_x_grid, gauge_y_grid)
+        x_coords, y_coords, x_grid, y_grid = get_xy_coordinate_grids(self.land_mask, return_coords=True)
+        distance_grid = calculate_gauge_to_grid_centre_distance(x_grid, y_grid, self.gauge_x_grid, self.gauge_y_grid)
         distance_grid = np.round(distance_grid / 1000, 2)  # convert from metres to kilometres
         # mask out oceans
-        distance_grid = distance_grid.where(land_mask)
-        distance_grid["time"] = self.time_step
+        distance_grid = distance_grid.where(self.land_mask)
         return distance_grid
 
     def get_cells_to_stat_disag(
         self,
-        land_mask: xr.DataArray,
-        daily_totals_grid: xr.DataArray,
         distance_grid: xr.DataArray = None,
         max_distance_to_gauge_m: int = MAX_DISTANCE_TO_GAUGE_M,
     ) -> xr.DataArray:
         # TODO: put this method into another class
         # Different ways of doing this too
         if distance_grid is None:
-            distance_grid = self.calculate_distance_grid(land_mask)
+            distance_grid = self.calculate_distance_grid()
         # Get mask of cells for stat disaggregation (gap filling)
-        daily_totals_grid_masked = daily_totals_grid.where(land_mask)
-        daily_totals_grid_masked = daily_totals_grid_masked.where(daily_totals_grid != 0)
+        daily_totals_grid_masked = self.daily_totals_grid.where(self.land_mask)
+        daily_totals_grid_masked = daily_totals_grid_masked.where(self.daily_totals_grid != 0)
         daily_totals_grid_masked = daily_totals_grid_masked.where(distance_grid < max_distance_to_gauge_m)
 
         # TODO: check the part where I remove max distance is correct
-        cells_to_stat_disag = (daily_totals_grid_masked.isnull() == land_mask).where(
+        cells_to_stat_disag = (daily_totals_grid_masked.isnull() == self.land_mask).where(
             distance_grid < max_distance_to_gauge_m, 0
         )
         return cells_to_stat_disag
 
     def get_subdaily_rainfall_factors(
         self,
-        land_mask: xr.DataArray,
-        daily_totals_grid: xr.DataArray,
         one_day_gridded_daily: xr.Dataset,
         cells_to_stat_disag: xr.DataArray,
         gridded_rainfall_col: str,
@@ -186,7 +186,7 @@ class CEHGEARSubDailyProducer:
         # TODO: check that this will always be the same order
         # 0. Get individual gauge coords for the day
         gauge_points = self.gauge_daily_info["points"].to_numpy()
-        x_coords, y_coords, x_grid, y_grid = get_xy_coordinate_grids(land_mask, return_coords=True)
+        x_coords, y_coords, x_grid, y_grid = get_xy_coordinate_grids(self.land_mask, return_coords=True)
 
         grid_disag_func = (
             get_stat_disag_fraction_15min_grid if self.time_res == "15m" else get_stat_disag_fraction_1h_grid
@@ -247,11 +247,11 @@ class CEHGEARSubDailyProducer:
 
             timestep_grid = xr.DataArray(
                 timestep_grid,
-                coords=land_mask.coords,
-                dims=land_mask.dims,
+                coords=self.land_mask.coords,
+                dims=self.land_mask.dims,
             )
 
-            factor_grid = (timestep_grid / daily_totals_grid).where(land_mask)
+            factor_grid = (timestep_grid / self.daily_totals_grid).where(self.land_mask)
             # Important to do before stat disagg
             factor_grid = factor_grid.fillna(0.0)
 
@@ -274,29 +274,30 @@ class CEHGEARSubDailyProducer:
         all_subdaily_factor_grid_ds = xr.concat(all_subdaily_factor_grid, dim="time")
         return all_subdaily_factor_grid_ds
 
+    def make_min_dist_var(
+        self,
+        compress_min_dist: bool,
+    ) -> xr.Dataset:
+        distance_grid = self.calculate_distance_grid()
+        if compress_min_dist:
+            distance_grid = distance_grid.expand_dims(day=[self.time_step])
+        else:
+            distance_grid["time"] = self.time_step
+        return distance_grid.to_dataset(name="min_dist_km")
+
     def produce_ceh_gear(
         self,
-        land_mask: xr.DataArray,
         one_day_gridded_daily: xr.Dataset,
         gridded_rainfall_col: str,
         output_rainfall_name: str = "rainfall",
     ) -> xr.Dataset:
-        # 1. Get coord grids
-        x_coords, y_coords, x_grid, y_grid = get_xy_coordinate_grids(land_mask, return_coords=True)
-        # 2. Run interpolation for distance grid and daily totals
-        gauge_x_grid, gauge_y_grid, daily_totals_grid = self.run_interpolation(x_coords, y_coords, x_grid, y_grid)
-        distance_grid = self.calculate_distance_grid(land_mask, gauge_x_grid, gauge_y_grid)
-        distance_grid["time"] = self.time_step
-
-        # 3. Get cells to statistically disaggregate based on interpolated daily totals
-        cells_to_stat_disag = self.get_cells_to_stat_disag(land_mask, daily_totals_grid)
+        # 1. Get cells to statistically disaggregate based on interpolated daily totals
+        cells_to_stat_disag = self.get_cells_to_stat_disag()
         cells_to_stat_disag["time"] = self.time_step
-        one_day_gridded_daily_masked = one_day_gridded_daily.where(land_mask)
+        one_day_gridded_daily_masked = one_day_gridded_daily.where(self.land_mask)
 
         # 4. Compute subdaily rainfall factors
         all_factor_grid_ds = self.get_subdaily_rainfall_factors(
-            land_mask,
-            daily_totals_grid,
             one_day_gridded_daily_masked,
             cells_to_stat_disag,
             gridded_rainfall_col,
@@ -306,7 +307,6 @@ class CEHGEARSubDailyProducer:
 
         # 6. Convert to dataset
         ceh_gear_one_day = ceh_gear_one_day.to_dataset(name=output_rainfall_name)
-        ceh_gear_one_day["min_dist_km"] = distance_grid
         ceh_gear_one_day["stat_disag"] = cells_to_stat_disag
         return ceh_gear_one_day
 
