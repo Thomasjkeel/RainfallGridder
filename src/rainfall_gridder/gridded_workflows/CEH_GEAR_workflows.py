@@ -10,8 +10,6 @@ from rainfall_gridder.prepare_data.gauge_grid_correlator import BatchGaugeVsGrid
 from rainfall_gridder.generate_grids.ceh_gear_subdaily_producer import CEHGEARSubDailyProducer
 from rainfall_gridder.utils import batch_saving_utils, get_ceh_gear_data, spatial_utils, xarray_utils
 
-from zarr.codecs import BloscCodec
-
 
 def ceh_gear_subdaily_workflow(
     rainfall_data_path: str | Path,
@@ -419,6 +417,7 @@ def write_to_zarr(
     sub_daily_ceh_gear_batch,
     min_dist_batch,
     any_batches_processed,
+    min_dist_time_dim="day",
 ):
     if not sub_daily_ceh_gear_batch:
         return
@@ -439,9 +438,10 @@ def write_to_zarr(
         mode = "w"
 
     sub_daily_ceh_gear_batch = [ds.chunk({"y": 300, "x": 300}) for ds in sub_daily_ceh_gear_batch]
-    min_dist_batch = [ds.chunk({"y": 300, "x": 300}) for ds in min_dist_batch]
+    min_dist_batch = [ds.
+    chunk({"y": 300, "x": 300}) for ds in min_dist_batch]
 
-    combined_min_dist = xr.concat(min_dist_batch, dim="day", join="exact", coords="minimal")
+    combined_min_dist = xr.concat(min_dist_batch, dim=min_dist_time_dim, join="exact", coords="minimal")
 
     combined_batch_ds = xr.concat(
         sub_daily_ceh_gear_batch,
@@ -450,14 +450,7 @@ def write_to_zarr(
         coords="minimal",
     )
     combined_batch_ds["min_dist_km"] = combined_min_dist["min_dist_km"] 
-
-    for variable in combined_batch_ds.variables.values():
-        variable.encoding.pop("compressor", None)
-        variable.encoding.pop("compressors", None)
-        variable.encoding.pop("chunks", None)
-        variable.encoding.pop("filters", None)
-        variable.encoding["compressors"] = BloscCodec(cname="zstd", clevel=5, shuffle="shuffle")
-
+    combined_batch_ds = combined_batch_ds.drop_encoding()
     del sub_daily_ceh_gear_batch
 
     if mode == "a":
