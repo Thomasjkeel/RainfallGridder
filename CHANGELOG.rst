@@ -1,6 +1,30 @@
 Changelog
 =========
 
+[0.1.5] - 2026-08-XX
+--------------------
+
+Added
+~~~~~
+* Redo logic for saving to zarr to allow for overwriting and check if zarr_output_file_exists
+* Speed up gridding by loading into memory
+* Add verbose argument to check_time_overlap_between_gridded_and_gauges
+* Add workflow_start and end_dates argument
+* Add step to regularise the data if there are time steps missing
+* Seperate out min_dist_km from produce_ceh_gear method
+* Express min dist as km instead (to save a lot of memory)
+
+
+[0.1.4] - 2026-08-19
+--------------------
+
+Added
+~~~~~
+* Add flush=True to print statements for batch computing
+* Check for time overlap for gauge grid correlator
+* Expect zarr version 3.0.8 or later
+
+
 [0.1.3] - 2026-08-19
 --------------------
 

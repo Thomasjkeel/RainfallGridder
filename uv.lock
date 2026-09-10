@@ -2769,7 +2769,7 @@ requires-dist = [
     { name = "scipy-stubs", specifier = "~=1.17.1" },
     { name = "typer" },
     { name = "xarray", extras = ["complete"] },
-    { name = "zarr" },
+    { name = "zarr", specifier = ">=3.0.8" },
 ]
 
 [package.metadata.requires-dev]

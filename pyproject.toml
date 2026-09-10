@@ -28,7 +28,7 @@ dependencies = [
     "altair",
     "xarray[complete]",
     "dask",
-    "zarr",
+    "zarr>=3.0.8",
     "matplotlib",
     "hvplot",
     "pyarrow",
