@@ -5,8 +5,8 @@ import fsspec
 import polars as pl
 import xarray as xr
 import zarr
-from pydantic import BaseModel, Field, model_validator
 from polars.exceptions import ComputeError, InvalidOperationError
+from pydantic import BaseModel, Field, model_validator
 
 
 class ColumnConfig(BaseModel):
@@ -92,7 +92,7 @@ class WorkflowConfig(BaseModel):
             try:
                 return pl.scan_csv(rainfall_data_path, try_parse_dates=True).filter(time_subset).collect()
             except (ComputeError, InvalidOperationError) as err:
-                raise ValueError(f"Problem with files in rainfall data input path: {path}") from err
+                raise ValueError(f"Problem with files in rainfall data input path: {rainfall_data_path}") from err
 
     def load_rainfall_metadata(self) -> pl.DataFrame:
         rainfall_metadata_path = Path(self.rainfall_metadata.path)

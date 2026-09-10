@@ -1,4 +1,5 @@
 from pathlib import Path
+
 import polars as pl
 import rainfallqc
 from rainfallqc.qc_frameworks.inbuilt_qc_frameworks import NON_ROWWISE_QC_CHECKS, NON_ROWWISE_QC_CONVERTER
@@ -6,7 +7,6 @@ from rainfallqc.qc_frameworks.inbuilt_qc_frameworks import NON_ROWWISE_QC_CHECKS
 from rainfall_gridder.quality_control.apply_intenseQC_rulebase import apply_intenseQC_rulebase
 from rainfall_gridder.quality_control.nearby_rainfall_data_loader import NearbyRainfallDataLoader
 from rainfall_gridder.utils import spatial_utils
-
 
 time_res_to_n_time_steps_in_day = {"15m": 96, "1h": 24}
 

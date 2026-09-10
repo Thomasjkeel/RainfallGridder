@@ -1,10 +1,10 @@
 from pathlib import Path
+
 import polars as pl
 import scipy.stats
 import xarray as xr
 
 from rainfall_gridder.prepare_data.data_combiner import GaugeVsGriddedRainfallMatcher
-from rainfall_gridder.prepare_data import data_formatting
 from rainfall_gridder.utils import spatial_utils, xarray_utils
 
 
