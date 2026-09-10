@@ -401,7 +401,7 @@ def produce_sub_daily_ceh_gear(
         # ceh_gear_one_day["min_dist_km"] = distance_grid
 
         if valid_time_steps_processed > 0:
-            print("Write/append to zarr output", flush=True)
+            print(f"Write/append zarr output to {config.output_dir / config.output_zarr_name}: ", flush=True)
             print(
                 f"Allow overwrite: {allow_overwrite}. Any batches processed: {any_batches_processed}. Number of valid days: {valid_time_steps_processed}.",
                 flush=True,
@@ -438,8 +438,7 @@ def write_to_zarr(
         mode = "w"
 
     sub_daily_ceh_gear_batch = [ds.chunk({"y": 300, "x": 300}) for ds in sub_daily_ceh_gear_batch]
-    min_dist_batch = [ds.
-    chunk({"y": 300, "x": 300}) for ds in min_dist_batch]
+    min_dist_batch = [ds.chunk({"y": 300, "x": 300}) for ds in min_dist_batch]
 
     combined_min_dist = xr.concat(min_dist_batch, dim=min_dist_time_dim, join="exact", coords="minimal")
 
@@ -449,7 +448,7 @@ def write_to_zarr(
         join="exact",
         coords="minimal",
     )
-    combined_batch_ds["min_dist_km"] = combined_min_dist["min_dist_km"] 
+    combined_batch_ds["min_dist_km"] = combined_min_dist["min_dist_km"]
     combined_batch_ds = combined_batch_ds.drop_encoding()
     del sub_daily_ceh_gear_batch
 
@@ -457,7 +456,7 @@ def write_to_zarr(
         combined_batch_ds.to_zarr(
             output_path,
             align_chunks=True,
-            append_dim="time",
+            append_dim=["time", min_dist_time_dim],
             zarr_format=3,
             consolidated=False,
         )
