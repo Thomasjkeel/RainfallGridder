@@ -35,7 +35,7 @@ class QualityController:
         smallest_rainfall_amount: int | float,
         min_n_neighbours: int,
         qc_framework: str,
-        nearby_rainfall_data_loader_kwargs: dict = {},
+        nearby_rainfall_data_loader_kwargs: dict | None = None,
         verbose: bool = False,
     ):
         """
