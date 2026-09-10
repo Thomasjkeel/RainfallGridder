@@ -1,4 +1,5 @@
 from pathlib import Path
+
 import polars as pl
 import rainfallqc
 from rainfallqc.qc_frameworks.inbuilt_qc_frameworks import NON_ROWWISE_QC_CHECKS, NON_ROWWISE_QC_CONVERTER
@@ -6,7 +7,6 @@ from rainfallqc.qc_frameworks.inbuilt_qc_frameworks import NON_ROWWISE_QC_CHECKS
 from rainfall_gridder.quality_control.apply_intenseQC_rulebase import apply_intenseQC_rulebase
 from rainfall_gridder.quality_control.nearby_rainfall_data_loader import NearbyRainfallDataLoader
 from rainfall_gridder.utils import spatial_utils
-
 
 time_res_to_n_time_steps_in_day = {"15m": 96, "1h": 24}
 
@@ -35,7 +35,7 @@ class QualityController:
         smallest_rainfall_amount: int | float,
         min_n_neighbours: int,
         qc_framework: str,
-        nearby_rainfall_data_loader_kwargs: dict = {},
+        nearby_rainfall_data_loader_kwargs: dict | None = None,
         verbose: bool = False,
     ):
         """
@@ -164,18 +164,18 @@ class QualityController:
         """
         quality_controller = cls(**kwargs)
         if quality_controller.verbose:
-            print("Quality controlling data for gridder")
+            print("Quality controlling data for gridder", flush=True)
         quality_controller.quality_control_data()
         if save_data:
             if quality_controller.verbose:
-                print(f"Saving data to {quality_controller.output_dir}")
+                print(f"Saving data to {quality_controller.output_dir}", flush=True)
             quality_controller.save_qcd_data(partition_by_columns)
             quality_controller.save_qcd_metadata()
             quality_controller.save_summary_of_qc()
             quality_controller.save_qc_rulebase_summary()
         else:
             if quality_controller.verbose:
-                print("Data not saved")
+                print("Data not saved", flush=True)
         if return_data:
             return (
                 quality_controller.qcd_data,
@@ -191,7 +191,7 @@ class QualityController:
             ].item()
         else:
             if self.verbose:
-                print(f"Station ID: {station_id} has no neighbours\n")
+                print(f"Station ID: {station_id} has no neighbours\n", flush=True)
             return False
 
     def quality_control_data(self):
@@ -221,7 +221,7 @@ class QualityController:
             # Check if that station actually has any neighbours
             if nearby_rainfall_data_loader.nearest_station_id is None:
                 if self.verbose:
-                    print(f"Station ID: {nearby_rainfall_data_loader.station_id} has no neighbours\n")
+                    print(f"Station ID: {nearby_rainfall_data_loader.station_id} has no neighbours\n", flush=True)
                 continue
 
             nearby_metadata = nearby_rainfall_data_loader.nearby_metadata
@@ -242,7 +242,7 @@ class QualityController:
                 )
             except Exception as e:
                 if self.verbose:
-                    print(station_id, e, "\n")
+                    print(station_id, e, "\n", flush=True)
                 continue
 
             # Summarise QC flags into statistics
@@ -260,7 +260,8 @@ class QualityController:
             )
             if self.verbose:
                 print(
-                    f"Station ID: {station_id}\tA total of {qc_summariser.all_flags['all_flags_by_row'][station_id].count() - rule_removed_rows[station_id].count()} rows were removed"
+                    f"Station ID: {station_id}\tA total of {qc_summariser.all_flags['all_flags_by_row'][station_id].count() - rule_removed_rows[station_id].count()} rows were removed",
+                    flush=True,
                 )  # some rows may have stayed null
             ## get back into parquet format that fits with Oracle
             rule_removed_rows = rule_removed_rows.select(["time", station_id])  # saves memory
@@ -274,7 +275,7 @@ class QualityController:
             qcd_data_list[ind] = rule_removed_rows
             rulebase_summary[ind] = n_rows_removed
             if self.verbose:
-                print("")
+                print("", flush=True)
 
         # Add summaries and qc data to self
         self.qc_rulebase_summary = pl.DataFrame(rulebase_summary)
@@ -315,28 +316,28 @@ class QualityController:
             )
         )
         if self.verbose:
-            print(f"QC'd rainfall data available at: {self.output_dir / 'qc_data/'}")
+            print(f"QC'd rainfall data available at: {self.output_dir / 'qc_data/'}", flush=True)
 
     def save_qcd_metadata(self) -> None:
         if self.qcd_metadata is None:
             raise RuntimeError("You must call quality_control_data() before save_final_metadata()")
         self.qcd_metadata.write_parquet(self.output_dir / "qcd_metadata.parquet")
         if self.verbose:
-            print(f"QC'd rainfall metadata available at: {self.output_dir / 'qcd_metadata.parquet'}")
+            print(f"QC'd rainfall metadata available at: {self.output_dir / 'qcd_metadata.parquet'}", flush=True)
 
     def save_summary_of_qc(self) -> None:
         if self.summary_of_qc is None:
             raise RuntimeError("You must call quality_control_data() before summary_of_qc()")
         self.summary_of_qc.write_parquet(self.output_dir / "summary_of_qc.parquet")
         if self.verbose:
-            print(f"Summary of QC available at: {self.output_dir / 'summary_of_qc.parquet'}")
+            print(f"Summary of QC available at: {self.output_dir / 'summary_of_qc.parquet'}", flush=True)
 
     def save_qc_rulebase_summary(self) -> None:
         if self.qc_rulebase_summary is None:
             raise RuntimeError("You must call quality_control_data() before save_qc_rulebase_summary()")
         self.qc_rulebase_summary.write_parquet(self.output_dir / "qc_rulebase_summary.parquet")
         if self.verbose:
-            print(f"Summary of QC rulebase available at: {self.output_dir / 'qc_rulebase_summary.parquet'}")
+            print(f"Summary of QC rulebase available at: {self.output_dir / 'qc_rulebase_summary.parquet'}", flush=True)
 
     def update_shared_qc_kwargs(self, nearby_rainfall_data_loader: NearbyRainfallDataLoader) -> None:
         """
@@ -448,7 +449,7 @@ class QCSummariser:
         perc_flagged = (flagged_rows / total_rows) * 100
         perc_flagged = perc_flagged.item() if perc_flagged.len() == 1 else 0
         if self.verbose:
-            print(f"Station ID: {self.station_id}\t\tFlag rate: {perc_flagged: .2f}%")
+            print(f"Station ID: {self.station_id}\t\tFlag rate: {perc_flagged: .2f}%", flush=True)
 
         # add to overall QC summary
         summary_of_qc = {}
