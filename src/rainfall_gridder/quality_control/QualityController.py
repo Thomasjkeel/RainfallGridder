@@ -4,7 +4,10 @@ import polars as pl
 import rainfallqc
 from rainfallqc.qc_frameworks.inbuilt_qc_frameworks import NON_ROWWISE_QC_CHECKS, NON_ROWWISE_QC_CONVERTER
 
-from rainfall_gridder.quality_control.apply_qc_rulebase import apply_intenseQC_rulebase, apply_intenseQC_w_subhourlyQC_rulebase
+from rainfall_gridder.quality_control.apply_qc_rulebase import (
+    apply_intenseQC_rulebase,
+    apply_intenseQC_w_subhourlyQC_rulebase,
+)
 from rainfall_gridder.quality_control.nearby_rainfall_data_loader import NearbyRainfallDataLoader
 from rainfall_gridder.utils import spatial_utils
 
@@ -255,7 +258,7 @@ class QualityController:
             )
 
             # Apply rulebase
-            if self.time_res == "15m":                
+            if self.time_res == "15m":
                 rule_removed_rows, n_rows_removed = apply_intenseQC_w_subhourlyQC_rulebase(
                     qc_summariser.all_flags, station_id, time_step=self.time_res
                 )

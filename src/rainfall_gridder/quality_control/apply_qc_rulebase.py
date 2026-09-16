@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Methods to apply rulebase to create quality controlled data."""
 
 import polars as pl
