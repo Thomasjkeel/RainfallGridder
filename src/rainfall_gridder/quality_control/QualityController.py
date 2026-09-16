@@ -93,7 +93,7 @@ class QualityController:
             self.qc_kwargs, self.qc_methods_to_run = self._set_up_intenseqc_w_subhourlyqc_framework()
         else:
             raise ValueError(
-                f"QC framework: '{self.qc_framework}' not recognised, please select from: 'intenseqc_rulebase_only'"
+                f"QC framework: '{self.qc_framework}' not recognised, please select from: 'intenseqc_rulebase_only' or 'intenseqc_w_subhourlyqc_rulebase'"
             )
 
         if "latitude" not in rainfall_metadata.columns or "longitude" not in rainfall_metadata.columns:
