@@ -89,7 +89,8 @@ class QualityController:
 
         if self.qc_framework == "intenseqc_rulebase_only":
             self.qc_kwargs, self.qc_methods_to_run = self._set_up_intenseqc_framework()
-
+        elif self.qc_framework == "intenseqc_w_subhourlyqc_rulebase":
+            self.qc_kwargs, self.qc_methods_to_run = self._set_up_intenseqc_w_subhourlyqc_framework()
         else:
             raise ValueError(
                 f"QC framework: '{self.qc_framework}' not recognised, please select from: 'intenseqc_rulebase_only'"
@@ -126,6 +127,24 @@ class QualityController:
         }
 
         qc_methods_to_run = ["QC2", "QC10", "QC11", "QC12", "QC13", "QC14", "QC15", "QC17", "QC19", "QC20"]
+
+        return qc_kwargs, qc_methods_to_run
+
+    def _set_up_intenseqc_w_subhourlyqc_framework(self) -> tuple[dict, list]:
+        qc_kwargs = {
+            "QC2": {"k": 10},
+            "shared": {
+                "time_res": self.time_res,
+                "smallest_measurable_rainfall_amount": self.smallest_rainfall_amount,
+                "wet_threshold": 1.0,
+                "min_n_neighbours": self.min_n_neighbours,
+                "n_neighbours_ignored": 0,
+                "accumulation_multiplying_factor": 2.0,
+            },
+        }
+
+        qc_methods_to_run = ["QC2", "QC10", "QC11", "QC12", "QC13", "QC14", "QC15", "QC17", "QC19", "QC20",
+         "HQC_UK1hr", "HQC_UK24hr", "HQC_UK24hr_rolling", "HQC_streaks_20mm", "SHQC_freqResChecker", "SHQC_subH_checkr"]
 
         return qc_kwargs, qc_methods_to_run
 
