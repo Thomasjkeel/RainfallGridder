@@ -9,7 +9,7 @@ def get_uk_mask_gear_coords():
     return gear_daily["rainfall_amount"].notnull()
 
 
-def get_uk_mask_haduk_coords(reverse_coords=True):
+def get_uk_mask_haduk_coords(reverse_coords: bool=True) -> xr.Dataset:
     gear_daily = get_gear_daily()
     gear_daily = gear_daily.isel(time=0)
     gear_daily_haduk_coords = coerse_data_into_haduk_format(gear_daily, offset=-500)
@@ -19,7 +19,7 @@ def get_uk_mask_haduk_coords(reverse_coords=True):
     return gear_daily_haduk_coords["rainfall_amount"].notnull()
 
 
-def coerse_data_into_haduk_format(data, offset):
+def coerse_data_into_haduk_format(data: xr.Dataset, offset: int | float) -> xr.Dataset:
     """
     Quick fix for coersing data to have same grid as HADUK.
     """

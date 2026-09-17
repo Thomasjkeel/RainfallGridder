@@ -316,13 +316,13 @@ def ceh_gear_subdaily_workflow_just_gridding(
 
 
 def produce_sub_daily_ceh_gear(
-    config,
-    gridded_rainfall,
-    qcd_rainfall_data,
-    corrd_rainfall_metadata,
-    output_grid,
-    allow_overwrite,
-    compress_min_dist,
+    config: WorkflowConfig,
+    gridded_rainfall: xr.Dataset,
+    qcd_rainfall_data: pl.DataFrame,
+    corrd_rainfall_metadata: pl.DataFrame,
+    output_grid: xr.Dataset,
+    allow_overwrite: bool,
+    compress_min_dist: bool,
 ):
     all_days = batch_saving_utils.get_all_days_in_input(
         qcd_rainfall_data,
@@ -413,12 +413,12 @@ def produce_sub_daily_ceh_gear(
 
 
 def write_to_zarr(
-    config,
-    allow_overwrite,
-    sub_daily_ceh_gear_batch,
-    min_dist_batch,
-    any_batches_processed,
-    min_dist_time_dim="day",
+    config: WorkflowConfig,
+    allow_overwrite: bool,
+    sub_daily_ceh_gear_batch: list,
+    min_dist_batch: list,
+    any_batches_processed: bool,
+    min_dist_time_dim: str="day",
 ):
     if not sub_daily_ceh_gear_batch:
         return
