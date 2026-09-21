@@ -485,10 +485,26 @@ def write_to_zarr(
     del sub_daily_ceh_gear_batch
 
     if mode == "a":
-        combined_batch_ds.to_zarr(
+        rainfall_only = combined_batch_ds.drop_vars("min_dist_km")
+        min_dist_only = combined_batch_ds[["min_dist_km"]]
+
+        if min_dist_time_dim != "time":
+            # If time is not the dimension then you will need to drop redundant time dim from each variable.
+            rainfall_only = rainfall_only.drop_dims(min_dist_time_dim, errors="ignore")
+            min_dist_only = min_dist_only.drop_dims("time", errors="ignore")
+
+        rainfall_only.to_zarr(
             output_path,
             align_chunks=True,
-            append_dim=["time", min_dist_time_dim],
+            append_dim="time",
+            zarr_format=3,
+            consolidated=False,
+        )
+
+        min_dist_only.to_zarr(
+            output_path,
+            align_chunks=True,
+            append_dim=min_dist_time_dim,
             zarr_format=3,
             consolidated=False,
         )
