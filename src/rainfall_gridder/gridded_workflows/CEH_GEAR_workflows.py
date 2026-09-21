@@ -18,6 +18,7 @@ def ceh_gear_subdaily_workflow(
     gridded_rainfall_path: str | Path | xr.Dataset,
     default_ceh_gear_kwargs: dict,
     allow_zarr_overwrite: bool,
+    zarr_overwrite_mode: str = None,
     compress_min_dist: bool = True,
     gridded_rainfall_rename_dict: dict | None = None,
     from_object_store: bool = False,
@@ -47,6 +48,8 @@ def ceh_gear_subdaily_workflow(
         Default arguments for CEH-GEAR workflow (see config/configs.py)
     allow_zarr_overwrite:
         Overwrite existing zarr file
+    zarr_overwrite_mode:
+        Method of overwriting either "w" (write new) or "a" (append to existing)
     compress_min_dist:
         Compress min dist into daily instead of per time step
     gridded_rainfall_rename_dict:
@@ -194,6 +197,7 @@ def ceh_gear_subdaily_workflow(
         corrd_rainfall_metadata,
         output_grid,
         allow_overwrite=allow_zarr_overwrite,
+        overwrite_mode=zarr_overwrite_mode,
         compress_min_dist=compress_min_dist,
     )
 
@@ -206,6 +210,7 @@ def ceh_gear_subdaily_workflow_just_gridding(
     gridded_rainfall_path: str | Path | xr.Dataset,
     default_ceh_gear_kwargs: dict,
     allow_zarr_overwrite: bool,
+    zarr_overwrite_mode: str = None,
     compress_min_dist: bool = True,
     gridded_rainfall_rename_dict: dict | None = None,
     from_object_store: bool = False,
@@ -235,6 +240,8 @@ def ceh_gear_subdaily_workflow_just_gridding(
         Default arguments for CEH-GEAR workflow (see config/configs.py)
     allow_zarr_overwrite:
         Overwrite existing zarr file
+    zarr_overwrite_mode:
+        Method of overwriting either "w" (write new) or "a" (append to existing)
     compress_min_dist:
         Compress min dist into daily instead of per time step
     gridded_rainfall_rename_dict:
@@ -309,6 +316,7 @@ def ceh_gear_subdaily_workflow_just_gridding(
         rainfall_metadata,
         output_grid,
         allow_overwrite=allow_zarr_overwrite,
+        overwrite_mode=zarr_overwrite_mode,
         compress_min_dist=compress_min_dist,
     )
 
@@ -322,8 +330,19 @@ def produce_sub_daily_ceh_gear(
     corrd_rainfall_metadata: pl.DataFrame,
     output_grid: xr.Dataset,
     allow_overwrite: bool,
+    overwrite_mode: str,
     compress_min_dist: bool,
-):
+    ):
+    """
+    Workflow to produce sub-daily rainfall grids using the CEH-GEAR method.
+
+    Parameters
+    ----------
+    allow_overwrite:
+        Whether to overwrite the filepath if already exists.
+    overwrite_mode:
+        Method of overwriting either "w" (write new) or "a" (append to existing)
+    """
     all_days = batch_saving_utils.get_all_days_in_input(
         qcd_rainfall_data,
         date_col=config.data_columns.date_time_col,
@@ -404,10 +423,10 @@ def produce_sub_daily_ceh_gear(
         if valid_time_steps_processed > 0:
             print(f"Write/append zarr output to {config.output_dir / config.output_zarr_name}: ", flush=True)
             print(
-                f"Allow overwrite: {allow_overwrite}. Any batches processed: {any_batches_processed}. Number of valid days: {valid_time_steps_processed}.",
+                f"Allow overwrite: {allow_overwrite} (mode: {overwrite_mode}). Any batches processed: {any_batches_processed}. Number of valid days: {valid_time_steps_processed}.",
                 flush=True,
             )
-            write_to_zarr(config, allow_overwrite, sub_daily_ceh_gear_batch, min_dist_batch, any_batches_processed)
+            write_to_zarr(config, allow_overwrite, overwrite_mode, sub_daily_ceh_gear_batch, min_dist_batch, any_batches_processed)
             any_batches_processed = True
         del batch_gridded_rainfall
 
@@ -415,11 +434,16 @@ def produce_sub_daily_ceh_gear(
 def write_to_zarr(
     config: WorkflowConfig,
     allow_overwrite: bool,
+    overwrite_mode: str,
     sub_daily_ceh_gear_batch: list,
     min_dist_batch: list,
     any_batches_processed: bool,
     min_dist_time_dim: str="day",
-):
+    ):
+    """
+    overwrite_mode:
+        Method of overwriting either "w" (write new) or "a" (append to existing).
+    """
     if not sub_daily_ceh_gear_batch:
         return
 
@@ -431,8 +455,15 @@ def write_to_zarr(
             raise ValueError(
                 f"Zarr output file already exists: {output_path}. "
                 "If you'd like to overwrite, set allow_zarr_overwrite=True"
+                " and set zarr_overwrite_mode to either 'w' or 'a'."
             )
-        mode = "w"
+        else:
+            if overwrite_mode != "w" and overwrite_mode != "a":
+                raise ValueError(
+                    "Please set zarr_overwrite_mode to either 'w' (write new)"
+                    " or 'a' (to append to existing)."
+                ) 
+            mode = overwrite_mode
     elif zarr_output_file_exists:
         mode = "a"
     else:
