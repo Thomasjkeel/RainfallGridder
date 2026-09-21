@@ -7,6 +7,7 @@ Changelog
 Added
 ~~~~~
 * Add subhourlyQC rulebase
+* Save min_dist_km and rainfall seperately to zarr if they have different time_dims
 
 
 [0.1.5] - 2026-08-31
